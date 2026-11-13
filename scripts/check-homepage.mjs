@@ -52,4 +52,11 @@ assert.ok(html.includes('المتجر الإلكتروني'),
   'Keep the established e-commerce terminology');
 assert.ok(html.includes('لإدارة نشاطك وتوسّعك.'),
   'Business wording should remain as requested');
-console.log('TechStar checks passed: inline JS syntax, six plans, home search, RTL, terminology.');
+for (const file of ['assets/techstar-icon.svg','404.html','robots.txt','sitemap.xml','site.webmanifest']) {
+  assert.ok(readFileSync(file, 'utf8').trim().length > 0, 'Missing or empty website asset: ' + file);
+}
+assert.ok(html.includes('href="./assets/techstar-icon.svg"'), 'Website favicon link missing');
+assert.ok(html.includes('href="./site.webmanifest"'), 'Website manifest link missing');
+assert.ok(html.includes('href="https://sulaimanalsanani.github.io/techstar-erp/"'), 'Canonical URL missing');
+assert.match(readFileSync('sitemap.xml','utf8'), /https:\/\/sulaimanalsanani\.github\.io\/techstar-erp\//);
+console.log('TechStar checks passed: JavaScript syntax, six plans, home search, SEO and static assets.');
