@@ -27,6 +27,12 @@ jobs:
           test -s index.html
           grep -qi '<!doctype html>' index.html
           grep -q 'id="app"' index.html
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate all six packages and JavaScript
+        run: node scripts/check-homepage.mjs
       - name: Prepare artifact
         run: |
           mkdir -p _site
