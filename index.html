@@ -24,6 +24,7 @@
 #home-packages-grid .package-card[hidden]{display:none!important}
 #home-packages-empty{margin-top:16px}
 @media(max-width:600px){.home-package-toolbar{padding:14px}.home-package-search-row{align-items:stretch;flex-direction:column}.home-package-search-row .input{width:100%;flex:auto}#home-package-count{align-self:flex-start}}
+#skip-to-content{border:0;cursor:pointer}
 </style><script>
 // Public settings only. Never place secrets here.
 window.TECHSTAR_CONFIG = {
@@ -59,7 +60,7 @@ const bundles=[
 ];
 const $=q=>document.querySelector(q); const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nav=[['/','الرئيسية'],['/solutions','الحلول'],['/packages','الباقات'],['/about','منهجية العمل'],['/contact','تواصل معنا']];
-function route(){const raw=decodeURIComponent(location.hash.replace(/^#/,''))||'/';return raw.startsWith('/')?raw:'/';}
+function route(){let raw='/';try{raw=decodeURIComponent(location.hash.replace(/^#/,''))||'/';}catch{return '/';}return raw.startsWith('/')?raw:'/';}
 function link(path,label,cls=''){return `<a class="${cls}" href="#${path}">${label}</a>`}
 function layout(inner){const current=route();return `<header class="site-header"><div class="container header-inner"><a class="brand" href="#/" aria-label="TechStar الرئيسية"><span class="brand-symbol">✦</span><span class="brand-text">TECH<span style="color:#62cbe5">STAR</span><small>RETAIL SYSTEMS</small></span></a><button class="mobile-toggle" aria-label="فتح القائمة" aria-expanded="false" aria-controls="nav">☰ القائمة</button><nav class="main-nav" id="nav" aria-label="التنقل الرئيسي">${nav.map(([p,t])=>link(p,esc(t),'nav-link '+(current===p?'active':''))).join('')}</nav>${link('/contact','اطلب عرضًا فنيًا','btn btn-sm header-cta')}</div></header><main id="main" tabindex="-1">${inner}</main><footer class="site-footer"><div class="container"><div class="footer-grid"><div><div class="brand"><span class="brand-symbol">✦</span><span class="brand-text">TECH<span style="color:#62cbe5">STAR</span><small>RETAIL SYSTEMS</small></span></div><p>منظومة رقمية مترابطة لتجارة التجزئة، قابلة للتوسع وفق احتياجات نشاطك والتطبيقات والتكاملات المعتمدة.</p></div><div><h3>استكشف</h3>${nav.slice(1).map(([p,t])=>link(p,esc(t))).join('')}</div><div><h3>نطاق الحل</h3><p>نقاط البيع · المخزون · المشتريات · المحاسبة · التجارة الإلكترونية · الموارد البشرية</p><p>التوفر والتكاملات تحدد وفق نطاق الاتفاق.</p></div></div><div class="footer-bottom"><span>© ${new Date().getFullYear()} TechStar — جميع الحقوق محفوظة</span><span>موقع تعريفي تفاعلي · لا يعالج طلبات العملاء على خادم دون ربط خدمة استقبال</span></div></div></footer><div class="toast hide" role="status" id="toast"></div>`}
 function pageHead(eyebrow,title,description){return `<div class="page-hero"><div class="container"><div class="crumb">${link('/','الرئيسية')} / ${esc(eyebrow)}</div><h1>${esc(title)}</h1><p>${esc(description)}</p></div></div>`}
@@ -139,12 +140,12 @@ async function refreshCatalogue(){
 }
 window.addEventListener('hashchange',()=>{render();document.getElementById('main')?.focus({preventScroll:true})});
 document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const nav=document.getElementById('nav'),toggle=document.querySelector('.mobile-toggle');if(nav?.classList.contains('open')){nav.classList.remove('open');toggle?.setAttribute('aria-expanded','false');toggle?.focus()}});
-document.addEventListener('DOMContentLoaded',()=>{render();refreshCatalogue()});
+document.addEventListener('DOMContentLoaded',()=>{const skip=$('#skip-to-content');if(skip)skip.addEventListener('click',()=>{const main=$('#main');if(main){main.focus();main.scrollIntoView({block:'start',behavior:'smooth'})}});render();refreshCatalogue()});
 
 </script>
 </head>
 <body>
-<a class="skip" href="#main">الانتقال إلى المحتوى</a>
+<button type="button" class="skip" id="skip-to-content">الانتقال إلى المحتوى</button>
 <div id="app"></div>
 <noscript><div class="noscript">الموقع يحتاج إلى تفعيل JavaScript لتشغيل التنقل والبحث ونموذج طلب العرض.</div></noscript>
 </body></html>
