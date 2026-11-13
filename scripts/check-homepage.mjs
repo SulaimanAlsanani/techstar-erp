@@ -52,6 +52,9 @@ assert.ok(html.includes('المتجر الإلكتروني'),
   'Keep the established e-commerce terminology');
 assert.ok(html.includes('لإدارة نشاطك وتوسّعك.'),
   'Business wording should remain as requested');
+assert.ok(html.includes('id="skip-to-content"'), 'Accessible skip-to-content button missing');
+assert.ok(!html.includes('href="#main"'), 'Skip button must not change the hash router');
+assert.ok(html.includes('try{raw=decodeURIComponent'), 'Malformed hash protection missing');
 for (const file of ['assets/techstar-icon.svg','404.html','robots.txt','sitemap.xml','site.webmanifest']) {
   assert.ok(readFileSync(file, 'utf8').trim().length > 0, 'Missing or empty website asset: ' + file);
 }
