@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+
+const html = readFileSync('index.html', 'utf8');
+assert.match(html, /^<!doctype html>/i, 'HTML5 doctype required');
+assert.match(html, /<html[^>]*lang="ar"[^>]*dir="rtl"/i, 'Arabic RTL document required');
+assert.match(html, /id="app"/, 'Application root missing');
+
+const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+  .filter(([, attrs, body]) => !/\bsrc\s*=/.test(attrs) && body.trim())
+  .map(([, , body]) => body);
+assert.ok(scripts.length >= 1, 'Inline application script missing');
+
+const dir = mkdtempSync(join(tmpdir(), 'techstar-check-'));
+try {
+  for (let i = 0; i < scripts.length; i++) {
+    const file = join(dir, 'script-' + i + '.js');
+    writeFileSync(file, scripts[i]);
+    const check = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
+    assert.equal(check.status, 0, 'JavaScript syntax error in inline script ' + i + '\n' + check.stderr);
+  }
+} finally {
+  rmSync(dir, { recursive: true, force: true });
+}
+
+const bundleSource = html.match(/const bundles=\[([\s\S]*?)\];/);
+assert.ok(bundleSource, 'Package catalogue missing');
+const planIds = [...bundleSource[1].matchAll(/\bid:'([^']+)'/g)].map(m => m[1]);
+assert.deepEqual(planIds, ['basic','bronze','silver','gold','platinum','diamond'],
+  'The six plan IDs and their order must be preserved');
+
+const homeStart = html.indexOf('function home(){');
+const homeEnd = html.indexOf('function solutionsPage(){');
+assert.ok(homeStart >= 0 && homeEnd > homeStart, 'Homepage component missing');
+const home = html.slice(homeStart, homeEnd);
+assert.ok(home.includes("$"+"{bundles.map(pkgCard).join('')}"),
+  'Homepage must render all six plans');
+assert.ok(home.includes('id="home-package-search"'),
+  'Homepage package search missing');
+assert.ok(home.includes('id="home-packages-grid"'),
+  'Homepage package grid missing');
+assert.ok(html.includes('function initHomePackageSearch()'),
+  'Package search behavior missing');
+assert.ok(html.includes('initHomePackageSearch();initSolutions();'),
+  'Package search must initialize after rendering');
+assert.ok(html.includes('.package-card[hidden]'),
+  'Filtered cards must be visually hidden');
+assert.ok(html.includes('المتجر الإلكتروني'),
+  'Keep the established e-commerce terminology');
+assert.ok(html.includes('لإدارة نشاطك وتوسّعك.'),
+  'Business wording should remain as requested');
+console.log('TechStar checks passed: inline JS syntax, six plans, home search, RTL, terminology.');
