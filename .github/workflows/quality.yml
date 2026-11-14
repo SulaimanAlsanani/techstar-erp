@@ -1,0 +1,38 @@
+name: TechStar source quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-public-site:
+    name: Validate public website
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate inline JavaScript and public assets
+        run: node scripts/check-homepage.mjs
+      - name: Validate no sensitive backend files are published
+        run: |
+          test -f index.html
+          test -f assets/techstar-icon.svg
+          test ! -f .env
+          test ! -f backend/.dev.vars
+          test ! -f secrets.json
+      - name: Validate default landing page and redirects
+        run: |
+          grep -qi '<!doctype html>' index.html
+          grep -q 'id="app"' index.html
+          grep -q 'techstar-erp/#/' 404.html
