@@ -109,6 +109,13 @@ assert.equal(JSON.parse(map.get(key)).version,2,'Legacy drafts should be migrate
 assert.ok(html.includes('id="skip-to-content"'), 'Accessible skip-to-content button missing');
 assert.ok(!html.includes('href="#main"'), 'Skip button must not change the hash router');
 assert.ok(html.includes('try{raw=decodeURIComponent'), 'Malformed hash protection missing');
+assert.ok(html.includes('function privacyPage(){'), 'Privacy information page missing');
+assert.ok(html.includes("path==='/privacy'?privacyPage():notFound()"), 'Privacy route missing');
+assert.ok(html.includes("link('/privacy','الخصوصية')"), 'Footer privacy navigation missing');
+assert.ok(html.includes("link('/privacy','اطّلع على معلومات الخصوصية'"), 'Quote form privacy notice missing');
+assert.ok(html.includes('حفظ المسودة اختياري'), 'Privacy page must describe local draft storage');
+assert.ok(html.includes('function render({resetScroll=true}={})'), 'Render must support preserving scroll');
+assert.ok(html.includes("render({resetScroll:false});"), 'Catalogue refresh must not reset scroll position');
 for (const file of ['assets/techstar-icon.svg','assets/din-next-arabic.css','404.html','robots.txt','sitemap.xml','site.webmanifest']) {
   assert.ok(readFileSync(file, 'utf8').trim().length > 0, 'Missing or empty website asset: ' + file);
 }
