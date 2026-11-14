@@ -14,7 +14,7 @@ LEAD_COLUMNS = (
     "industry, package_id, solution_id, branches, pos_count, notes, created_at"
 )
 UPDATE_QUERY = (
-    "UPDATE leads SET status = ?, updated_at = datetime('now') "
+    "UPDATE leads SET status = ?, updated_at = datetime('now'), revision = revision + 1 "
     "WHERE id = ? AND status = ?"
 )
 AUDIT_QUERY = (
@@ -40,6 +40,7 @@ def setup_connection(preexisting=True):
         )
         db.commit()
     db.executescript((MIGRATIONS / "0002_crm_audit.sql").read_text(encoding="utf-8"))
+    db.executescript((MIGRATIONS / "0003_crm_followup.sql").read_text(encoding="utf-8"))
     return db
 
 
@@ -49,6 +50,35 @@ def change_status(db, previous, desired, event_id="audit-1"):
         audit = db.execute(
             AUDIT_QUERY,
             (event_id, "staff@example.test", previous, desired, "lead-1", desired)
+        )
+        return update.rowcount, audit.rowcount
+
+
+FOLLOWUP_UPDATE_QUERY = (
+    "UPDATE leads SET assigned_to = ?, follow_up_at = ?, revision = revision + 1, "
+    "updated_at = datetime('now') WHERE id = ? AND revision = ?"
+)
+FOLLOWUP_AUDIT_QUERY = (
+    "INSERT INTO lead_followup_audit "
+    "(id,lead_id,actor_email,previous_assignee,new_assignee,previous_due,new_due) "
+    "SELECT ?,id,?,?,?,?,? FROM leads WHERE id = ? AND revision = ? AND changes() = 1"
+)
+
+
+def change_followup(db, expected_revision=0, assignee="staff@example.test",
+                    followup="2026-12-01T10:00:00.000Z"):
+    old = db.execute(
+        "SELECT assigned_to,follow_up_at,revision FROM leads WHERE id='lead-1'"
+    ).fetchone()
+    with db:
+        update = db.execute(
+            FOLLOWUP_UPDATE_QUERY, (assignee, followup, "lead-1", expected_revision)
+        )
+        audit = db.execute(
+            FOLLOWUP_AUDIT_QUERY,
+            ("followup-audit-1", "manager@example.test", old["assigned_to"],
+             assignee, old["follow_up_at"], followup,
+             "lead-1", expected_revision + 1)
         )
         return update.rowcount, audit.rowcount
 
@@ -105,6 +135,51 @@ class MigrationTests(unittest.TestCase):
                     1, 0, "", "2026-11-02 00:00:00"
                 ),
             )
+
+    def test_followup_audit_and_revision(self):
+        self.assertEqual(change_followup(self.db), (1, 1))
+        row = self.db.execute(
+            "SELECT assigned_to,follow_up_at,revision FROM leads WHERE id='lead-1'"
+        ).fetchone()
+        self.assertEqual(row["assigned_to"], "staff@example.test")
+        self.assertEqual(row["revision"], 1)
+        self.assertEqual(row["follow_up_at"], "2026-12-01T10:00:00.000Z")
+        audit = self.db.execute("SELECT * FROM lead_followup_audit").fetchone()
+        self.assertEqual(audit["previous_assignee"], "")
+        self.assertEqual(audit["new_assignee"], "staff@example.test")
+        self.assertEqual(audit["actor_email"], "manager@example.test")
+
+    def test_stale_followup_update_creates_no_second_audit(self):
+        self.assertEqual(change_followup(self.db), (1, 1))
+        self.assertEqual(
+            change_followup(self.db, expected_revision=0, assignee="other@example.test"),
+            (0, 0)
+        )
+        self.assertEqual(
+            self.db.execute("SELECT COUNT(*) FROM lead_followup_audit").fetchone()[0], 1
+        )
+
+    def test_followup_audit_is_append_only(self):
+        change_followup(self.db)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "UPDATE lead_followup_audit SET new_assignee='fake@example.test'"
+            )
+
+    def test_status_revision_invalidates_stale_followup(self):
+        self.assertEqual(change_status(self.db, "new", "in_progress"), (1, 1))
+        row = self.db.execute("SELECT revision FROM leads WHERE id='lead-1'").fetchone()
+        self.assertEqual(row["revision"], 1)
+        self.assertEqual(change_followup(self.db, expected_revision=0), (0, 0))
+
+    def test_followup_audit_cascades_when_lead_is_removed(self):
+        change_followup(self.db)
+        with self.db:
+            self.db.execute("DELETE FROM leads WHERE id='lead-1'")
+        self.assertEqual(
+            self.db.execute("SELECT COUNT(*) FROM lead_followup_audit").fetchone()[0],
+            0
+        )
 
     def test_invalid_branch_count_rejected(self):
         with self.assertRaises(sqlite3.IntegrityError):
