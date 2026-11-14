@@ -26,6 +26,10 @@ jobs:
         run: node scripts/check-homepage.mjs
       - name: Test interactive routes and quote form
         run: node scripts/check-routes.mjs
+      - name: Test Cloudflare API contract (not deployed)
+        run: |
+          node --check backend/src/index.mjs
+          node --test backend/test/index.test.mjs
       - name: Validate private font preparation script
         run: python -m py_compile scripts/prepare-licensed-din-webfonts.py scripts/activate-licensed-din-webfonts.py
       - name: Verify font binaries are excluded from Git
