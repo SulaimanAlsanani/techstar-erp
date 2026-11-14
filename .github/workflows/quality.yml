@@ -25,7 +25,7 @@ jobs:
       - name: Validate inline JavaScript and public assets
         run: node scripts/check-homepage.mjs
       - name: Validate private font preparation script
-        run: python -m py_compile scripts/prepare-licensed-din-webfonts.py
+        run: python -m py_compile scripts/prepare-licensed-din-webfonts.py scripts/activate-licensed-din-webfonts.py
       - name: Verify font binaries are excluded from Git
         run: |
           grep -Fxq '*.woff2' .gitignore
