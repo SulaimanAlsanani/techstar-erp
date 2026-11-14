@@ -13,3 +13,13 @@ binding = "DB"
 database_name = "techstar-leads"
 database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
 migrations_dir = "migrations"
+
+# Public quote anti-abuse: 6 submissions/minute per client IP, approximately,
+# within each Cloudflare location. Choose an integer namespace ID unique to
+# this Cloudflare account before deployment.
+[[ratelimits]]
+name = "LEAD_RATE_LIMITER"
+namespace_id = "REPLACE_WITH_UNIQUE_INTEGER_NAMESPACE_ID"
+  [ratelimits.simple]
+  limit = 6
+  period = 60
