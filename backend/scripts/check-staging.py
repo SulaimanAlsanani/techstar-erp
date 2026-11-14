@@ -28,7 +28,7 @@ def validate(config: dict) -> tuple[list[str], list[str]]:
     blockers: list[str] = []
     if config.get("main") != "src/index.mjs" or not (ROOT / "src/index.mjs").is_file():
         problems.append("Worker entrypoint must be src/index.mjs")
-    if config.get("name") != "techstar-public-api":
+    if config.get("name") not in ("techstar-public-api", "techstar-public-api-staging"):
         problems.append("Unexpected Worker name")
     if not re.match(r"^20\d\d-\d\d-\d\d$", str(config.get("compatibility_date", ""))):
         problems.append("Invalid compatibility date")
@@ -37,7 +37,7 @@ def validate(config: dict) -> tuple[list[str], list[str]]:
         problems.append("Expected one D1 binding named DB")
     else:
         db = bindings[0]
-        if db.get("database_name") != "techstar-leads":
+        if db.get("database_name") not in ("techstar-leads", "techstar-leads-staging"):
             problems.append("D1 database_name must match techstar-leads")
         if db.get("migrations_dir") != "migrations":
             problems.append("D1 migrations_dir must be migrations")
@@ -80,9 +80,10 @@ def validate(config: dict) -> tuple[list[str], list[str]]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--require-ready", action="store_true", help="Fail until staging prerequisites are configured")
+    parser.add_argument("--config", type=Path, default=CONFIG, help="Wrangler TOML file to inspect")
     args = parser.parse_args()
     try:
-        data = tomllib.loads(CONFIG.read_text(encoding="utf-8"))
+        data = tomllib.loads(args.config.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
         print("Invalid wrangler.toml:", exc)
         return 1
