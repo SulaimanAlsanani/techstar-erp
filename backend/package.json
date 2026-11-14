@@ -1,0 +1,15 @@
+{
+  "name": "techstar-public-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check src/index.mjs",
+    "dev": "wrangler dev",
+    "migrate": "wrangler d1 migrations apply techstar-leads --local"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
