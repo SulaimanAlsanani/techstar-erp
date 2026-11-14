@@ -96,6 +96,10 @@ async function adminRoutes(request,env,url){
   return respond({error:"not_found"},404);
 }
 async function handleLead(request,env,origin) {
+  // Explicit release gate: staging deployments never start collecting leads merely
+  // because their D1, Turnstile and rate-limit bindings happen to be configured.
+  if(env.LEAD_INGESTION_ENABLED!=="true")
+    return respond({error:"lead_ingestion_disabled"},503,origin);
   if(!env.DB || !env.TURNSTILE_SECRET || !env.LEAD_RATE_LIMITER?.limit)
     return respond({error:"service_not_configured"},503,origin);
   if(request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")
@@ -146,7 +150,7 @@ export default {
       return adminRoutes(request,env,url);
     const origin=allowedOrigin(request.headers.get("origin"),env);
     if(url.pathname==="/health"&&request.method==="GET")
-      return respond({status:"ok",ready:!!(env.DB&&env.TURNSTILE_SECRET&&env.LEAD_RATE_LIMITER?.limit)});
+      return respond({status:"ok",ready:!!(env.LEAD_INGESTION_ENABLED==="true"&&env.DB&&env.TURNSTILE_SECRET&&env.LEAD_RATE_LIMITER?.limit)});
     if(!origin)return respond({error:"origin_not_allowed"},403);
     if(request.method==="OPTIONS")
       return new Response(null,{status:204,headers:{
