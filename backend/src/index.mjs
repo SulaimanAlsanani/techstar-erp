@@ -1,3 +1,8 @@
+import {adminConfigured,authenticateAdmin} from "./admin-auth.mjs";
+import {handleAdminAPI} from "./crm-admin.mjs";
+import {adminPage} from "./admin-page.mjs";
+import {adminApp} from "./admin-app.mjs";
+
 /* TechStar MVP lead-ingestion API. Staging-first: do not expose until D1 and
    Turnstile are configured and privacy, retention, and operational controls approved. */
 const DEFAULT_ORIGIN = "https://sulaimanalsanani.github.io";
@@ -64,6 +69,31 @@ async function verifyTurnstile(token,request,env) {
   const hostname=String(env.TURNSTILE_HOSTNAME || EXPECTED_HOSTNAME);
   return result.success===true && result.hostname===hostname;
 }
+function privateResponse(body,kind="text/html; charset=utf-8"){
+  return new Response(body,{status:200,headers:{
+    "content-type":kind,
+    "cache-control":"no-store, private",
+    "x-content-type-options":"nosniff",
+    "referrer-policy":"no-referrer",
+    "x-frame-options":"DENY",
+    "content-security-policy":"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    "permissions-policy":"camera=(), microphone=(), geolocation=()"
+  }});
+}
+async function adminRoutes(request,env,url){
+  const path=url.pathname;
+  if(path.startsWith("/admin/api/"))
+    return handleAdminAPI(request,env,url);
+  if(!adminConfigured(env))
+    return respond({error:"admin_not_configured"},503);
+  const auth=await authenticateAdmin(request,env);
+  if(!auth.ok)return respond({error:auth.error},auth.status);
+  if((path==="/admin"||path==="/admin/")&&request.method==="GET")
+    return privateResponse(adminPage);
+  if(path==="/admin/assets/app.js"&&request.method==="GET")
+    return privateResponse(adminApp,"text/javascript; charset=utf-8");
+  return respond({error:"not_found"},404);
+}
 async function handleLead(request,env,origin) {
   if(!env.DB || !env.TURNSTILE_SECRET)return respond({error:"service_not_configured"},503,origin);
   if(request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")
@@ -101,6 +131,8 @@ async function handleLead(request,env,origin) {
 export default {
   async fetch(request,env={}) {
     const url=new URL(request.url);
+    if(url.pathname==="/admin"||url.pathname.startsWith("/admin/"))
+      return adminRoutes(request,env,url);
     const origin=allowedOrigin(request.headers.get("origin"),env);
     if(url.pathname==="/health"&&request.method==="GET")
       return respond({status:"ok",ready:!!(env.DB&&env.TURNSTILE_SECRET)});
