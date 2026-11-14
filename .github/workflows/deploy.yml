@@ -39,6 +39,8 @@ jobs:
         run: |
           node --check backend/src/index.mjs
           node --test backend/test/*.test.mjs
+      - name: Validate D1 SQLite migrations and audit transactions
+        run: python backend/scripts/check-schema.py
       - name: Prepare artifact
         run: |
           mkdir -p _site/assets
