@@ -7,6 +7,17 @@
 يستخدم الموقع **DIN Next Arabic** لجميع العناوين والنصوص والأزرار والنماذج.
 أوزان الخط المدعومة: Regular (400)، Medium (500)، Bold (700).
 
+### التفعيل المباشر عبر GitHub CLI (الأسهل)
+
+من جهازك الذي توجد عليه ملفات الخطوط الأصلية، ثبّت [GitHub CLI](https://cli.github.com/)، ثم نفذ `gh auth login` وثبّت حزم Python المطلوبة:
+
+```bash
+python -m pip install fonttools brotli
+python scripts/activate-licensed-din-webfonts.py "din-next-lt-w23-regular(4).ttf" "din-next-lt-w23-medium(4).ttf" "alfont_com_AlFont_com_din-next-lt-w23-bold(4).ttf"
+```
+
+يجب تشغيل الأمر من **جذر المستودع محليًا** ووضع ملفات الخطوط الثلاثة في المجلد نفسه، أو إعطاء مساراتها الكاملة. ستولّد الأداة WOFF2 محليًا، وتخزّن قيمه داخل GitHub Actions Secrets الخاصة بالمستودع، ثم تطلب تشغيل النشر. لا تكتب قيم Base64 في المحادثات أو ترفع ملفات الخط إلى المستودع العام.
+
 ### تضمين Webfont المرخّص دون نشر ملفاته في GitHub العام
 
 بما أن ترخيص Webfont متاح، يمكن تضمين نسخة WOFF2 في الموقع المنشور عن طريق **GitHub Actions Secrets**. لا تضع ملفات TTF أو WOFF2 الأصلية مباشرة في المستودع العام.
