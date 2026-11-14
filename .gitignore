@@ -1,0 +1,15 @@
+# Keep proprietary, licensed font files out of the public repository.
+.private-font-secrets/
+*.ttf
+*.otf
+*.woff
+*.woff2
+*.eot
+
+# Local development secrets
+.env
+.env.*
+!.env.example
+*.log
+__pycache__/
+*.pyc
