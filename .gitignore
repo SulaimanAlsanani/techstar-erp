@@ -13,3 +13,8 @@
 *.log
 __pycache__/
 *.pyc
+
+# Cloudflare local development state and secrets
+.dev.vars
+.dev.vars.*
+.wrangler/
