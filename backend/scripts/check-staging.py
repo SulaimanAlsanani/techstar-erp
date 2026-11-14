@@ -56,6 +56,11 @@ def validate(config: dict) -> tuple[list[str], list[str]]:
         if simple.get("limit") != 6 or simple.get("period") != 60:
             problems.append("Expected baseline rate limit 6 requests per 60 seconds")
     vars_ = config.get("vars") or {}
+    ingestion=vars_.get("LEAD_INGESTION_ENABLED")
+    if ingestion not in ("true", "false"):
+        problems.append("LEAD_INGESTION_ENABLED must explicitly be true or false")
+    if config.get("name") == "techstar-public-api-staging" and ingestion != "false":
+        problems.append("Staging must never enable public lead ingestion")
     origins = str(vars_.get("ALLOWED_ORIGINS", "")).split(",")
     if not origins or any(not x.strip() for x in origins):
         problems.append("ALLOWED_ORIGINS must be a nonempty list of exact HTTPS origins")
