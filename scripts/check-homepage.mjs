@@ -44,6 +44,21 @@ assert.ok(home.includes('id="home-packages-grid"'),
   'Homepage package grid missing');
 assert.ok(html.includes('function initHomePackageSearch()'),
   'Package search behavior missing');
+assert.ok(html.includes('function normalizeSearch(text)'), 'Arabic search normalization missing');
+assert.ok(html.includes('function packageSearchIndex(p)'), 'Package search index missing');
+assert.ok(html.includes("['المتجر الإلكتروني','متجر إلكتروني','ecommerce','online store']"),
+  'Store synonyms should be searchable without renaming e-commerce applications');
+assert.ok(html.includes('id="compare-differences-only"'), 'Package comparison filter missing');
+assert.ok(html.includes('function initPackageComparison()'), 'Comparison filter behavior missing');
+assert.ok(html.includes('data-shared='), 'Shared application rows must be identified');
+assert.ok(html.includes('initPackageComparison();'), 'Comparison filter must initialize when route changes');
+const jsSource = scripts.join('\n');
+const normalizeMatch = jsSource.match(/function normalizeSearch\(text\)\{[\s\S]*?\n\}/);
+assert.ok(normalizeMatch, 'Arabic normalizer function missing');
+const normalizeSearch = new Function(normalizeMatch[0] + '\nreturn normalizeSearch;')();
+assert.equal(normalizeSearch('المُتْجر الإلِكتروني'),normalizeSearch('المتجر الالكتروني'));
+assert.equal(normalizeSearch('الأساسية'),normalizeSearch('الاساسيه'));
+assert.equal(normalizeSearch('الإدارة'),normalizeSearch('الاداره'));
 assert.ok(html.includes('initHomePackageSearch();initSolutions();'),
   'Package search must initialize after rendering');
 assert.ok(html.includes('.package-card[hidden]'),
