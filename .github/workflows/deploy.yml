@@ -38,7 +38,7 @@ jobs:
       - name: Test Cloudflare API contract (not deployed)
         run: |
           node --check backend/src/index.mjs
-          node --test backend/test/index.test.mjs
+          node --test backend/test/*.test.mjs
       - name: Prepare artifact
         run: |
           mkdir -p _site/assets
