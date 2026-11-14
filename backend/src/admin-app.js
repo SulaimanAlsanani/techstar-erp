@@ -72,7 +72,7 @@
        for(const value of [
          lead.reference,lead.business,lead.name,
          plans[lead.package]||'غير محددة',statuses[lead.status]||lead.status,
-         fmt(lead.createdAt)
+         lead.assignedTo||'غير معين',fmt(lead.followUpAt),fmt(lead.createdAt)
        ])tr.append(node('td',value));
        const cell=node('td');
        const btn=node('button','تفاصيل','btn secondary small');
@@ -82,7 +82,7 @@
      }
      if(!result.items?.length){
        const row=node('tr'),cell=node('td','لا توجد طلبات مطابقة للبحث.');
-       cell.colSpan=7;row.append(cell);rows.append(row);
+       cell.colSpan=9;row.append(cell);rows.append(row);
      }
      $('prev').disabled=offset===0;
      $('next').disabled=offset+limit>=total;
@@ -94,11 +94,17 @@
    current=null;
    $('details').replaceChildren();
    $('audit').replaceChildren();
+   $('followup-audit').replaceChildren();
    $('detail-message').textContent='جارٍ تحميل التفاصيل...';
    $('status-section').classList.toggle('hidden',role!=='admin');
+   $('followup-section').classList.toggle('hidden',role!=='admin');
    $('detail').showModal();
    try{
-     const [data,audit]=await Promise.all([api('/leads/'+encodeURIComponent(id)),api('/leads/'+encodeURIComponent(id)+'/audit')]);
+     const [data,audit,followupAudit]=await Promise.all([
+       api('/leads/'+encodeURIComponent(id)),
+       api('/leads/'+encodeURIComponent(id)+'/audit'),
+       api('/leads/'+encodeURIComponent(id)+'/followup-history')
+     ]);
      if(!$('detail').open)return;
      current=data.lead;
      $('detail-title').textContent='الطلب '+current.reference;
@@ -109,6 +115,8 @@
        ['النشاط',current.industry],['الباقة',plans[current.package]||current.package],
        ['الحل',current.solution],['الفروع',current.branches],
        ['نقاط البيع',current.pos],['الحالة',statuses[current.status]||current.status],
+       ['المسؤول عن المتابعة',current.assignedTo||'غير معين'],
+       ['موعد المتابعة',fmt(current.followUpAt)],
        ['تاريخ الطلب',fmt(current.createdAt)],['آخر تحديث',fmt(current.updatedAt)]
      ])addField(dl,label,value);
      addField(dl,'المتطلبات',current.notes,true);
@@ -118,11 +126,23 @@
        const option=node('option',statuses[name]);option.value=name;select.append(option);
      }
      $('save-status').disabled=choices.length===0;
+     $('assignee').value=current.assignedTo||'';
+     const due=current.followUpAt?new Date(current.followUpAt):null;
+     $('followup-time').value=due&&Number.isFinite(due.valueOf())
+       ?new Date(due.getTime()-due.getTimezoneOffset()*60000).toISOString().slice(0,16):'';
+     $('save-followup').disabled=role!=='admin';
      const list=$('audit');list.replaceChildren();
      for(const event of audit.events||[]){
        list.append(node('li',fmt(event.createdAt)+' — '+event.actor+': '+(statuses[event.from]||event.from)+' ← '+(statuses[event.to]||event.to)));
      }
      if(!audit.events?.length)list.append(node('li','لا توجد تغييرات مسجّلة.'));
+     const history=$('followup-audit');history.replaceChildren();
+     for(const event of followupAudit.events||[]){
+       history.append(node('li',
+         fmt(event.createdAt)+' — '+event.actor+' — '+(event.fromAssignee||'غير معين')+
+         ' ← '+(event.toAssignee||'غير معين')+' · '+fmt(event.fromDue)+' ← '+fmt(event.toDue)));
+     }
+     if(!followupAudit.events?.length)history.append(node('li','لا يوجد سجل تعيينات بعد.'));
      $('detail-message').textContent='';
    }catch(e){$('detail-message').textContent=error(e)}
  }
@@ -147,10 +167,36 @@
      $('detail-message').textContent=error(e);
    }finally{button.disabled=false}
  }
+ async function saveFollowup(event){
+   event.preventDefault();
+   if(!current||role!=='admin')return;
+   if(!$('assignee').reportValidity()||!$('followup-time').reportValidity())return;
+   const assignedTo=$('assignee').value.trim().toLowerCase();
+   const input=$('followup-time').value;
+   const due=input?new Date(input):null;
+   if(due&&!Number.isFinite(due.valueOf())){
+     $('detail-message').textContent='موعد المتابعة غير صالح';return;
+   }
+   const followUpAt=due?due.toISOString():'';
+   const button=$('save-followup');button.disabled=true;
+   $('detail-message').textContent='جارٍ حفظ المتابعة...';
+   try{
+     await api('/leads/'+encodeURIComponent(current.id)+'/followup',{
+       method:'PATCH',headers:{'content-type':'application/json'},
+       body:JSON.stringify({assignedTo,followUpAt,revision:current.revision})
+     });
+     $('detail').close();
+     current=null;
+     await loadLeads();
+     message('تم تحديث مسؤول المتابعة وموعدها وتسجيل التغيير.');
+   }catch(e){$('detail-message').textContent=error(e)}
+   finally{button.disabled=false}
+ }
  async function init(){
    $('close-detail').addEventListener('click',()=>$('detail').close());
    $('detail').addEventListener('close',()=>{current=null});
    $('status-form').addEventListener('submit',saveStatus);
+   $('followup-form').addEventListener('submit',saveFollowup);
    $('filters').addEventListener('submit',e=>{e.preventDefault();offset=0;loadLeads()});
    $('refresh').addEventListener('click',()=>{loadSummary().catch(()=>{});loadLeads()});
    $('prev').addEventListener('click',()=>{offset=Math.max(0,offset-limit);loadLeads()});
