@@ -1,64 +1,73 @@
-# TechStar public API — staging-only foundation
+# TechStar CRM backend — مرحلة Staging
 
-This is a small Cloudflare Worker and D1 foundation for the existing quote form.
-**It is not deployed or connected to the live website.** It is not a complete CRM, CMS,
-admin panel, or production-ready lead-management system.
+يتضمن مجلد `backend` واجهة Cloudflare Worker + D1 لاستقبال طلبات العروض،
+ولوحة إدارة عربية محمية بواسطة Cloudflare Access، مع أدوار الموظفين، وسجل تغييرات الحالات.
 
-## Endpoints
+**الحالة الحالية:** الكود متاح على GitHub لكنه **غير منشور على Cloudflare** ولا يتصل بموقع GitHub Pages. لا تستقبل بيانات عملاء حقيقية قبل إكمال المتطلبات الأمنية والتشغيلية.
 
-| Endpoint | Purpose | Security |
+## المسارات
+
+| Endpoint | الاستخدام | الحماية |
 |---|---|---|
-| `GET /health` | Reports service availability and configuration readiness | Public, no secrets |
-| `GET /api/content` | Read-only empty override list; the website retains its built-in catalogue | Strict Origin policy |
-| `POST /api/leads` | Validate and store new quotation leads in D1 | Strict Origin, Turnstile, input validation, idempotency |
-| `OPTIONS /api/*` | Browser CORS preflight | Only approved Origins |
+| `GET /health` | فحص الجاهزية الأساسية | عام، دون أسرار |
+| `GET /api/content` | محتوى ديناميكي اختياري (فارغ حتى تفعيل CMS) | Origin معتمد |
+| `POST /api/leads` | إنشاء طلب عرض مع منع التكرار | Origin + Turnstile + D1 |
+| `GET /admin/` | لوحة CRM | Cloudflare Access JWT + قائمة بريد |
+| `GET /admin/assets/app.js` | ملف لوحة الإدارة | Cloudflare Access JWT |
+| `GET /admin/api/me` | هوية المستخدم ودوره | Cloudflare Access JWT |
+| `GET /admin/api/summary` | مؤشرات الطلبات | قراءة/مدير |
+| `GET /admin/api/leads?status=&q=&limit=&offset=` | بحث وترقيم الصفحات | قراءة/مدير |
+| `GET /admin/api/leads/:id` | تفاصيل طلب | قراءة/مدير |
+| `GET /admin/api/leads/:id/audit` | سجل تغييرات | قراءة/مدير |
+| `PATCH /admin/api/leads/:id` | تغيير الحالة مع التدقيق | مدير فقط |
 
-A successful lead response has `{"received":true,"reference":"TS-..."}`.
-The website must **not** interpret a client-side summary as a successful submission.
+الاستجابة المعتمدة لتأكيد استلام طلب عرض: `{"received":true,"reference":"TS-..."}`.
+تجهيز ملخص الطلب في المتصفح **ليس إرسالًا إلى الخدمة**.
 
-## Local tests
+## اختبارات محلية
 
-Requires Node.js 22+:
+يتطلب Node.js 22+ وPython 3:
 
 ```bash
 cd backend
 node --check src/index.mjs
-node --test test/index.test.mjs
+node --test test/*.test.mjs
+python scripts/check-schema.py
 ```
 
-Tests cover CORS, request validation, honeypot rejection, Turnstile hostname
-verification, storage failure and idempotent retries. GitHub Actions runs them
-before deploying the public website.
+الاختبارات تتحقق من توقيع Access JWT الحقيقي باستخدام مفتاح RSA للاختبار، والصلاحيات، والتصدي لتزوير الهوية، وتغييرات الحالات وتضاربها، وواجهات الطلبات العامة، وعمليات SQLite الفعلية وقيودها وتدقيق التغييرات، وسياسة الحذف الاختيارية.
 
-## Before enabling API ingestion
+## تهيئة Cloudflare قبل التجربة
 
-1. Decide the legal controller, privacy notice, retention/deletion schedule, and
-   staff access roles; review applicable personal-data requirements.
-2. Create a Cloudflare D1 database named `techstar-leads`, record its real
-   database ID, and replace `REPLACE_WITH_YOUR_D1_DATABASE_ID` in `wrangler.toml`.
-3. Install Wrangler and apply the included migration **to the intended database**.
-4. Set the `TURNSTILE_SECRET` using Wrangler secrets, never in `wrangler.toml`
-   or Git. Set the public `TURNSTILE_HOSTNAME` and exact `ALLOWED_ORIGINS`
-   for the website and any approved staging origins.
-5. Review rate limits, operational monitoring, admin authentication, backups,
-   data export/deletion, and access audit logging before accepting real leads.
-6. Deploy the Worker. Confirm `GET /health` reports `ready:true` and test
-   failed and successful Turnstile verification in staging.
-7. Only after the checks pass, set the **public** values in `index.html`:
-   `window.TECHSTAR_CONFIG.apiBaseUrl` to the deployed Worker URL and
-   `window.TECHSTAR_CONFIG.turnstileSiteKey` to the public site key.
-8. Verify a real test lead reaches D1 once, that repeat submissions use the same
-   reference, and that the website reports success only after the API confirms it.
+1. اعتمد الجهة المسؤولة عن بيانات العملاء والبيان القانوني وفترة الاحتفاظ والنسخ الاحتياطي والإجراءات التشغيلية.
+2. أنشئ قاعدة D1 باسم `techstar-leads` واستبدل `REPLACE_WITH_YOUR_D1_DATABASE_ID` بالمعرّف الحقيقي في `wrangler.toml`.
+3. طبّق ملفات `migrations/0001_leads.sql` و`migrations/0002_crm_audit.sql` بالترتيب على **بيئة Staging أولًا**.
+4. أنشئ Cloudflare Turnstile واضبط `TURNSTILE_SECRET` سرًّا، و`TURNSTILE_HOSTNAME` و`ALLOWED_ORIGINS` على نطاق الموقع المعتمد.
+5. أنشئ تطبيق Cloudflare Access يحمي `/admin/*` على نطاق الـWorker، ويقتصر على موظفي الشركة المصرح لهم. **لا تعتمد على إخفاء رابط /admin**.
+6. اضبط إعدادات Access التالية عبر أسرار Worker أو متغيرات بيئة إدارية، دون كتابتها في ملفات عامة:
 
-Do not configure only one of the Turnstile keys; the Worker intentionally
-fails closed without a private `TURNSTILE_SECRET` and the website needs the
-matching public site key to produce tokens. Never share either the D1 admin
-credentials or the secret key publicly.
+| إعداد | مثال توضيحي | الوظيفة |
+|---|---|---|
+| `ACCESS_ISSUER` | `https://your-team.cloudflareaccess.com` | جهة إصدار JWT |
+| `ACCESS_AUD` | Audience من لوحة Cloudflare Access | التحقق من التطبيق |
+| `CRM_ADMIN_EMAILS` | قائمة مفصولة بفواصل | مديرون يغيّرون الحالات |
+| `CRM_VIEWER_EMAILS` | قائمة مفصولة بفواصل | قراءة فقط |
 
-## Status and limitations
+يفحص الـWorker توقيع JWT بخوارزمية RS256 من مفاتيح Cloudflare، ثم مطابقة جهة الإصدار وAudience والمدة والبريد مع القائمة المعتمدة. **أي نقص في الإعدادات يؤدي إلى رفض الدخول**.
 
-- The public website remains GitHub Pages static hosting.
-- The API has no authenticated lead-management UI, notifications, scheduled
-  deletion, or advanced multi-dimensional rate limiting yet.
-- Do not store live customer records until these are implemented and reviewed.
-- `database_id` in `wrangler.toml` is intentionally a placeholder.
+7. اختبر مسارات الإدارة بموظف إداري، وموظف قراءة فقط، ومستخدم غير مصرح به. اختبر عدم ظهور بيانات CRM في الموقع العام.
+8. بعد مراجعة معدل الطلبات، والنسخ الاحتياطي، والرقابة التشغيلية، ونقل بيانات الاختبار فقط، اربط عنوان الخدمة المنشورة في `window.TECHSTAR_CONFIG.apiBaseUrl`، ومفتاح Turnstile العام في `turnstileSiteKey`.
+
+### حذف الطلبات المغلقة — معطّل افتراضيًا
+
+يضم `src/retention.mjs` معالجًا لا يحذف إلا طلبات `lost` و`archived` التي تجاوزت مدة محددة، وبحد أقصى 100 طلب في التشغيل الواحد. السجل المرتبط يُحذف مع الطلب بواسطة Foreign Key في D1.
+
+لا يعمل هذا المعالج دون **جميع** الشروط: قاعدة D1، و`CRM_RETENTION_ENABLED=true`، و`CRM_RETENTION_DAYS` كعدد صحيح من 30 إلى 3650، وجدول Cron معتمد. **لا يوجد Cron Trigger معرّف في `wrangler.toml` حاليًا**. لا تُفعّل الحذف قبل اعتماد السياسة قانونيًا وتشغيليًا. يمكن إضافة الجدول بعد الاعتماد في `[triggers]` طبقًا لتوثيق Cloudflare.
+
+### ملاحظات فنية
+
+- ملف `src/admin-app.js` هو مصدر JavaScript لواجهة الإدارة، ويُقدَّم من `src/admin-app.mjs` كنص. اختبارات CI تتحقق من تطابقهما؛ عند تحديث الواجهة يجب تحديث النسختين.
+- أي عرض لمدخلات العملاء في الواجهة يتم من خلال `textContent` وليس `innerHTML`.
+- سجلات تغيير الحالات لا تقبل UPDATE بفضل Trigger في SQLite؛ حذف سجل العميل وفق سياسة احتفاظ معتمدة يمكن أن يحذف سجلاته المرتبطة.
+- لا توجد حتى الآن تنبيهات بريد، أو نظام موافقات متقدم، أو نسخ احتياطي معتمد، أو حماية Rate Limiting كاملة، أو إجراءات إنتاجية معتمدة لحذف/تصدير البيانات بناءً على طلب صاحبها.
+- ملفات الخط التجارية لا تُرفع إلى GitHub العام؛ تفعيل DIN Next Arabic على جميع الأجهزة يحتاج Webfont مرخّصًا ومُفعّلًا.
