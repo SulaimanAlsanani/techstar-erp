@@ -16,10 +16,12 @@
 | `GET /admin/assets/app.js` | ملف لوحة الإدارة | Cloudflare Access JWT |
 | `GET /admin/api/me` | هوية المستخدم ودوره | Cloudflare Access JWT |
 | `GET /admin/api/summary` | مؤشرات الطلبات | قراءة/مدير |
-| `GET /admin/api/leads?status=&q=&limit=&offset=` | بحث وترقيم الصفحات | قراءة/مدير |
+| `GET /admin/api/leads?status=&q=&due=&assigned=&limit=&offset=` | بحث وفلاتر المتأخر والمجدول والمسند لي | قراءة/مدير |
 | `GET /admin/api/leads/:id` | تفاصيل طلب | قراءة/مدير |
 | `GET /admin/api/leads/:id/audit` | سجل تغييرات | قراءة/مدير |
 | `PATCH /admin/api/leads/:id` | تغيير الحالة مع التدقيق | مدير فقط |
+| `PATCH /admin/api/leads/:id/followup` | تعيين موظف وموعد متابعة مع فحص Revision | مدير فقط |
+| `GET /admin/api/leads/:id/followup-history` | سجل تعيينات المتابعة | قراءة/مدير |
 
 الاستجابة المعتمدة لتأكيد استلام طلب عرض: `{"received":true,"reference":"TS-..."}`.
 تجهيز ملخص الطلب في المتصفح **ليس إرسالًا إلى الخدمة**.
@@ -33,6 +35,9 @@ cd backend
 node --check src/index.mjs
 node --test test/*.test.mjs
 python scripts/check-schema.py
+python scripts/check-staging.py
+# عند الاستعداد للتجربة على Cloudflare:
+python scripts/check-staging.py --require-ready
 ```
 
 الاختبارات تتحقق من توقيع Access JWT الحقيقي باستخدام مفتاح RSA للاختبار، والصلاحيات، والتصدي لتزوير الهوية، وتغييرات الحالات وتضاربها، وواجهات الطلبات العامة، وعمليات SQLite الفعلية وقيودها وتدقيق التغييرات، وسياسة الحذف الاختيارية.
@@ -41,7 +46,7 @@ python scripts/check-schema.py
 
 1. اعتمد الجهة المسؤولة عن بيانات العملاء والبيان القانوني وفترة الاحتفاظ والنسخ الاحتياطي والإجراءات التشغيلية.
 2. أنشئ قاعدة D1 باسم `techstar-leads` واستبدل `REPLACE_WITH_YOUR_D1_DATABASE_ID` بالمعرّف الحقيقي في `wrangler.toml`.
-3. طبّق ملفات `migrations/0001_leads.sql` و`migrations/0002_crm_audit.sql` بالترتيب على **بيئة Staging أولًا**.
+3. طبّق ملفات `migrations/0001_leads.sql` و`migrations/0002_crm_audit.sql` و`migrations/0003_crm_followup.sql` بالترتيب على **بيئة Staging أولًا**.
 4. أنشئ Cloudflare Turnstile واضبط `TURNSTILE_SECRET` سرًّا، و`TURNSTILE_HOSTNAME` و`ALLOWED_ORIGINS` على نطاق الموقع المعتمد.
    اضبط كذلك معرّف namespace رقميًا وفريدًا في `[[ratelimits]]` داخل `wrangler.toml`. يُطلب الآن ربط `LEAD_RATE_LIMITER` قبل استقبال أي طلب: الحد الابتدائي 6 محاولات في 60 ثانية لكل IP وفق حدود Cloudflare التقريبية. غياب الـBinding يمنع الاستقبال ويجعل `/health` يُرجع `ready:false`. راجع سياسة الحد المناسبة قبل الإنتاج.
 5. أنشئ تطبيق Cloudflare Access يحمي `/admin/*` على نطاق الـWorker، ويقتصر على موظفي الشركة المصرح لهم. **لا تعتمد على إخفاء رابط /admin**.
@@ -69,7 +74,11 @@ python scripts/check-schema.py
 
 - ملف `src/admin-app.js` هو مصدر JavaScript لواجهة الإدارة، ويُقدَّم من `src/admin-app.mjs` كنص. اختبارات CI تتحقق من تطابقهما؛ عند تحديث الواجهة يجب تحديث النسختين.
 - أي عرض لمدخلات العملاء في الواجهة يتم من خلال `textContent` وليس `innerHTML`.
+- يدعم CRM الآن إسناد مسؤول للطلب وموعد متابعة، مع سجل تدقيق منفصل وRevision لمنع تعارض التعديلات. تظهر في اللوحة أعداد المتابعات المتأخرة والمستحقة خلال 7 أيام.
+- مرشحات قائمة الطلبات: `due=overdue|scheduled|unscheduled` و`assigned=mine|unassigned`. لا يُستبدل `mine` ببريد مرسل من المتصفح؛ يؤخذ من JWT الموثق.
+- طلب تغيير المتابعة يستخدم JSON بالشكل `{"assignedTo":"staff@example.com","followUpAt":"2026-12-11T11:30:00.000Z","revision":0}`. يمكن إفراغ البريد والموعد لإزالتهما. لا يجوز إسناد الطلب إلا لموظف موجود ضمن قائمة الصلاحيات.
 - سجلات تغيير الحالات لا تقبل UPDATE بفضل Trigger في SQLite؛ حذف سجل العميل وفق سياسة احتفاظ معتمدة يمكن أن يحذف سجلاته المرتبطة.
 - أضيفت حماية Rate Limiting تقريبية على مستوى Cloudflare Worker؛ لا تغني عن WAF أو ضوابط Strict Limits عند الحاجة. لم تُطبّق اختبارات تحميل إنتاجية بعد.
 - لا توجد بعد تنبيهات بريد، أو نظام موافقات متقدم، أو نسخ احتياطي معتمد، أو إجراءات إنتاجية معتمدة لحذف/تصدير البيانات بناءً على طلب صاحبها.
+- فحص `check-staging.py` يكشف إعدادات قاعدة D1 والحد من الطلبات غير المفعّلة دون تشغيل الخدمة. لا يتحقق من صلاحيات Cloudflare الفعلية أو صحة الأسرار البعيدة؛ يجب اختبارها في Staging.
 - ملفات الخط التجارية لا تُرفع إلى GitHub العام؛ تفعيل DIN Next Arabic على جميع الأجهزة يحتاج Webfont مرخّصًا ومُفعّلًا.
