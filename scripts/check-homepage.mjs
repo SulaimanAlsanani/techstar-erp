@@ -112,7 +112,7 @@ assert.ok(html.includes('try{raw=decodeURIComponent'), 'Malformed hash protectio
 assert.ok(html.includes('function privacyPage(){'), 'Privacy information page missing');
 assert.ok(html.includes("path==='/privacy'?privacyPage():notFound()"), 'Privacy route missing');
 assert.ok(html.includes("link('/privacy','الخصوصية')"), 'Footer privacy navigation missing');
-assert.ok(html.includes("link('/privacy','اطّلع على معلومات الخصوصية'"), 'Quote form privacy notice missing');
+assert.ok(html.includes('href="#/privacy" target="_blank" rel="noopener noreferrer"'), 'Quote form privacy information must open in another tab');
 assert.ok(html.includes('حفظ المسودة اختياري'), 'Privacy page must describe local draft storage');
 assert.ok(html.includes('function render({resetScroll=true}={})'), 'Render must support preserving scroll');
 assert.ok(html.includes("render({resetScroll:false});"), 'Catalogue refresh must not reset scroll position');
