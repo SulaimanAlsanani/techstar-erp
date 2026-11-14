@@ -74,9 +74,10 @@ assert.ok(html.includes('لإدارة نشاطك وتوسّعك.'),
 assert.ok(html.includes('function loadQuoteDraft()'), 'Quote draft expiration logic missing');
 assert.ok(html.includes('function saveQuoteDraft(form)'), 'Expiring draft save helper missing');
 assert.ok(html.includes('حفظ مسودة لمدة 7 أيام'), 'Draft retention notice missing');
-const draftSource = jsSource.match(/const DRAFT_MAX_AGE=[\s\S]*?\n\}/g);
-assert.ok(draftSource && draftSource.length >= 2, 'Expected draft functions in application source');
-const draftCode = draftSource.slice(0,2).join('\n');
+const draftStart = jsSource.indexOf('const DRAFT_MAX_AGE=');
+const draftEnd = jsSource.indexOf('function apiBase(){',draftStart);
+assert.ok(draftStart >= 0 && draftEnd > draftStart, 'Expected draft helpers in application source');
+const draftCode = jsSource.slice(draftStart,draftEnd);
 const map = new Map();
 const store = {
   getItem: key => map.has(key) ? map.get(key) : null,
