@@ -40,6 +40,53 @@ jobs:
           cp assets/techstar-icon.svg assets/din-next-arabic.css _site/assets/
           touch _site/.nojekyll
           printf '{"commit":"%s","branch":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > _site/deployment.json
+      - name: Embed licensed DIN Next Arabic Webfonts when configured
+        shell: bash
+        env:
+          DIN_REGULAR_B64: ${{ secrets.TECHSTAR_DIN_REGULAR_WOFF2_B64 }}
+          DIN_MEDIUM_B64: ${{ secrets.TECHSTAR_DIN_MEDIUM_WOFF2_B64 }}
+          DIN_BOLD_B64: ${{ secrets.TECHSTAR_DIN_BOLD_WOFF2_B64 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DIN_REGULAR_B64" || -z "$DIN_MEDIUM_B64" || -z "$DIN_BOLD_B64" ]]; then
+            echo "Licensed DIN Next Webfont secrets not configured; using installed fonts and fallback."
+            exit 0
+          fi
+          printf '%s' "$DIN_REGULAR_B64" | base64 --decode > _site/assets/din-next-regular.woff2
+          printf '%s' "$DIN_MEDIUM_B64" | base64 --decode > _site/assets/din-next-medium.woff2
+          printf '%s' "$DIN_BOLD_B64" | base64 --decode > _site/assets/din-next-bold.woff2
+          for font in _site/assets/din-next-{regular,medium,bold}.woff2; do
+            test -s "$font"
+            if [[ "$(head -c 4 "$font")" != "wOF2" ]]; then
+              echo "::error::Invalid WOFF2 data in a licensed font secret."
+              exit 1
+            fi
+          done
+          cat >> _site/assets/din-next-arabic.css <<'FONT_CSS'
+          /* Licensed Webfonts are injected at deploy time; font binaries are not in Git. */
+          @font-face {
+            font-family: 'TechStar DIN Next Arabic';
+            src: url('./din-next-regular.woff2') format('woff2');
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'TechStar DIN Next Arabic';
+            src: url('./din-next-medium.woff2') format('woff2');
+            font-style: normal;
+            font-weight: 500;
+            font-display: swap;
+          }
+          @font-face {
+            font-family: 'TechStar DIN Next Arabic';
+            src: url('./din-next-bold.woff2') format('woff2');
+            font-style: normal;
+            font-weight: 700 900;
+            font-display: swap;
+          }
+          FONT_CSS
+          echo "Licensed DIN Next Webfonts embedded in the Pages artifact."
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
