@@ -300,3 +300,61 @@ test("status changes increment revision so stale follow-up edits are rejected",a
    "PATCH",token,{assignedTo:ADMIN,followUpAt:"",revision:0}),env(db));
  assert.equal(stale.status,409);
 });
+
+
+test("CRM follow-up filtering is parameterized, scoped to signed-in user",async()=>{
+ const token=await sign(VIEWER);
+ const calls=[];
+ const database={prepare(sql){
+   const entry={sql,args:[]};calls.push(entry);
+   return {
+     bind(...args){entry.args=args;return this},
+     async all(){return {results:[]}},
+     async first(){return {total:0}}
+   };
+ }};
+ const url="/admin/api/leads?due=overdue&assigned=mine&status=in_progress&q=100%25%27&limit=10&offset=0";
+ const response=await worker.fetch(request(url,"GET",token),env(database));
+ assert.equal(response.status,200);
+ const result=await response.json();
+ assert.equal(result.items.length,0);
+ assert.equal(calls.length,2);
+ assert.match(calls[0].sql,/assigned_to = \?/);
+ assert.match(calls[0].sql,/follow_up_at < strftime/);
+ assert.match(calls[0].sql,/status NOT IN/);
+ assert.ok(!calls[0].sql.includes("100%"));
+ assert.ok(calls[0].args.includes(VIEWER));
+ assert.ok(calls[0].args.some(x=>String(x).includes("100")));
+ assert.equal(result.limit,10);
+});
+
+test("CRM follow-up and assignment filters reject unsupported values",async()=>{
+ const token=await sign(ADMIN);
+ let calls=0;
+ const db={prepare(){calls++;throw Error("Unexpected query")}};
+ for(const path of [
+   "/admin/api/leads?due=yesterday",
+   "/admin/api/leads?assigned=anybody",
+   "/admin/api/leads?due=overdue&limit=999"
+ ]){
+   const response=await worker.fetch(request(path,"GET",token),env(db));
+   assert.equal(response.status,422);
+ }
+ assert.equal(calls,0);
+});
+
+test("unassigned and unscheduled filters use fixed SQL without user interpolation",async()=>{
+ const token=await sign(ADMIN);
+ const calls=[];
+ const db={prepare(sql){
+   calls.push(sql);
+   return {bind(){return this},async all(){return {results:[]}},
+     async first(){return {total:0}}};
+ }};
+ const response=await worker.fetch(request(
+   "/admin/api/leads?assigned=unassigned&due=unscheduled",
+   "GET",token),env(db));
+ assert.equal(response.status,200);
+ assert.match(calls[0],/assigned_to = ''/);
+ assert.match(calls[0],/follow_up_at = ''/);
+});
