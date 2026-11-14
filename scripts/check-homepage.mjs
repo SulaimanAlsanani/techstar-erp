@@ -42,6 +42,10 @@ assert.ok(home.includes('id="home-package-search"'),
   'Homepage package search missing');
 assert.ok(home.includes('id="home-packages-grid"'),
   'Homepage package grid missing');
+assert.ok(home.includes('id="home-packages-section"'), 'Homepage package section anchor missing');
+assert.ok(home.includes('id="browse-home-packages"'), 'Hero browse-packages button missing');
+assert.ok(html.includes("scrollIntoView({behavior:'smooth',block:'start'})"),
+  'Hero button must scroll to the package section');
 assert.ok(html.includes('function initHomePackageSearch()'),
   'Package search behavior missing');
 assert.ok(html.includes('function normalizeSearch(text)'), 'Arabic search normalization missing');
