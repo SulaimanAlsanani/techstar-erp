@@ -63,7 +63,7 @@ const normalizeSearch = new Function(normalizeMatch[0] + '\nreturn normalizeSear
 assert.equal(normalizeSearch('المُتْجر الإلِكتروني'),normalizeSearch('المتجر الالكتروني'));
 assert.equal(normalizeSearch('الأساسية'),normalizeSearch('الاساسيه'));
 assert.equal(normalizeSearch('الإدارة'),normalizeSearch('الاداره'));
-assert.ok(html.includes('initHomePackageSearch();initSolutions();'),
+assert.ok(html.includes('initHomePackageSearch();initPackageComparison();initSolutions();'),
   'Package search must initialize after rendering');
 assert.ok(html.includes('.package-card[hidden]'),
   'Filtered cards must be visually hidden');
