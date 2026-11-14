@@ -38,12 +38,16 @@ function formatLead(r,details=false){
     email:r.email,phone:r.phone,industry:r.industry,solution:r.solution_id,notes:r.notes};
   return publicFields;
 }
-async function listLeads(url,db){
+async function listLeads(url,db,actor){
   const status=url.searchParams.get("status")||"";
   const rawLimit=url.searchParams.get("limit")||"20";
   const rawOffset=url.searchParams.get("offset")||"0";
   const q=(url.searchParams.get("q")||"").trim();
-  if((status&&!STATUSES.includes(status))||!(/^[1-9][0-9]*$/.test(rawLimit))||
+  const due=url.searchParams.get("due")||"";
+  const assigned=url.searchParams.get("assigned")||"";
+  if((due&&!["overdue","scheduled","unscheduled"].includes(due))||
+     (assigned&&!["mine","unassigned"].includes(assigned))||
+     (status&&!STATUSES.includes(status))||!(/^[1-9][0-9]*$/.test(rawLimit))||
      !(/^(0|[1-9][0-9]*)$/.test(rawOffset))||q.length>80)
     return fail("invalid_filters",422);
   const limit=Number(rawLimit),offset=Number(rawOffset);
@@ -51,6 +55,14 @@ async function listLeads(url,db){
   const where=[];
   const binds=[];
   if(status){where.push("status = ?");binds.push(status)}
+  if(assigned==="mine"){where.push("assigned_to = ?");binds.push(actor.email)}
+  if(assigned==="unassigned"){where.push("assigned_to = ''")}
+  if(due==="scheduled")where.push("follow_up_at <> ''");
+  if(due==="unscheduled")where.push("follow_up_at = ''");
+  if(due==="overdue")where.push(
+    "follow_up_at <> '' AND follow_up_at < strftime('%Y-%m-%dT%H:%M:%fZ','now') "+
+    "AND status NOT IN ('won','lost','archived')"
+  );
   if(q){
     const escaped=q.replace(/[\\%_]/g,"\\$&");
     where.push("(reference LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\' OR business LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\')");
@@ -216,7 +228,7 @@ export async function handleAdminAPI(request,env,url){
   try{
     if(path==="/admin/api/me"&&request.method==="GET")return json({email:auth.email,role:auth.role});
     if(path==="/admin/api/summary"&&request.method==="GET")return summary(env.DB);
-    if(path==="/admin/api/leads"&&request.method==="GET")return listLeads(url,env.DB);
+    if(path==="/admin/api/leads"&&request.method==="GET")return listLeads(url,env.DB,auth);
     if(segments.length===4&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"){
       if(request.method==="GET")return leadDetail(segments[3],env.DB);
       if(request.method==="PATCH")return changeStatus(request,url,segments[3],env,auth);
