@@ -43,6 +43,14 @@ jobs:
         run: python backend/scripts/check-schema.py
       - name: Inspect Cloudflare staging configuration before release
         run: python backend/scripts/check-staging.py
+      - name: Test isolated Cloudflare staging config with fake account values
+        env:
+          TECHSTAR_STAGING_D1_ID: "00000000-0000-0000-0000-000000000001"
+          TECHSTAR_STAGING_RATE_NAMESPACE: "321890"
+        run: |
+          python backend/scripts/prepare-staging.py
+          python backend/scripts/check-staging.py --require-ready --config backend/.wrangler-staging.toml
+          grep -Fxq 'LEAD_INGESTION_ENABLED = "false"' backend/.wrangler-staging.toml
       - name: Prepare artifact
         run: |
           mkdir -p _site/assets
