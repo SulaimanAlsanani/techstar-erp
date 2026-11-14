@@ -96,7 +96,8 @@ async function adminRoutes(request,env,url){
   return respond({error:"not_found"},404);
 }
 async function handleLead(request,env,origin) {
-  if(!env.DB || !env.TURNSTILE_SECRET)return respond({error:"service_not_configured"},503,origin);
+  if(!env.DB || !env.TURNSTILE_SECRET || !env.LEAD_RATE_LIMITER?.limit)
+    return respond({error:"service_not_configured"},503,origin);
   if(request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")
     return respond({error:"invalid_content_type"},415,origin);
   const len=Number(request.headers.get("content-length"));
@@ -112,6 +113,15 @@ async function handleLead(request,env,origin) {
   if(payload.website)return respond({error:"invalid_request"},422,origin);
   const data=validate(payload);
   if(!data)return respond({error:"invalid_fields"},422,origin);
+  // Per-IP Cloudflare binding is an approximate abuse control; never use it
+  // as a billing or exact quota system. Fail closed if the binding errors.
+  let allowed=false;
+  try{
+    const ip=request.headers.get("cf-connecting-ip") || "unknown";
+    const rate=await env.LEAD_RATE_LIMITER.limit({key:"quote:"+ip});
+    allowed=rate?.success===true;
+  }catch{return respond({error:"rate_limiter_unavailable"},503,origin)}
+  if(!allowed)return respond({error:"rate_limited"},429,origin);
   let isHuman=false;
   try{isHuman=await verifyTurnstile(payload.turnstileToken,request,env)}catch{}
   if(!isHuman)return respond({error:"challenge_failed"},422,origin);
@@ -136,7 +146,7 @@ export default {
       return adminRoutes(request,env,url);
     const origin=allowedOrigin(request.headers.get("origin"),env);
     if(url.pathname==="/health"&&request.method==="GET")
-      return respond({status:"ok",ready:!!(env.DB&&env.TURNSTILE_SECRET)});
+      return respond({status:"ok",ready:!!(env.DB&&env.TURNSTILE_SECRET&&env.LEAD_RATE_LIMITER?.limit)});
     if(!origin)return respond({error:"origin_not_allowed"},403);
     if(request.method==="OPTIONS")
       return new Response(null,{status:204,headers:{
