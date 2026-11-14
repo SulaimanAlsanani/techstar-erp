@@ -71,6 +71,13 @@ assert.ok(html.includes('المتجر الإلكتروني'),
   'Keep the established e-commerce terminology');
 assert.ok(html.includes('لإدارة نشاطك وتوسّعك.'),
   'Business wording should remain as requested');
+assert.ok(html.includes("--techstar-font:'TechStar DIN Next Arabic'"), 'DIN Next Arabic CSS variable missing');
+assert.ok(html.includes('font-family:var(--techstar-font)'), 'DIN Next Arabic not applied to document');
+assert.ok(html.includes('href="./assets/din-next-arabic.css"'), 'DIN Next Arabic stylesheet link missing');
+const fontCss = readFileSync('assets/din-next-arabic.css','utf8');
+assert.ok(fontCss.includes("@font-face"), 'Local DIN Next Arabic face not declared');
+assert.ok(fontCss.includes("local('DIN Next Arabic')"), 'Local DIN Next Arabic source missing');
+
 assert.ok(!html.includes('100,000 ر.س'), 'Do not publish fictional sales totals');
 assert.ok(!html.includes('نسبة هدر</small><b>1.8%'), 'Do not publish fictional shrinkage rates');
 assert.ok(html.includes('واجهة توضيحية وليست بيانات تشغيل حقيقية'),
@@ -102,7 +109,7 @@ assert.equal(JSON.parse(map.get(key)).version,2,'Legacy drafts should be migrate
 assert.ok(html.includes('id="skip-to-content"'), 'Accessible skip-to-content button missing');
 assert.ok(!html.includes('href="#main"'), 'Skip button must not change the hash router');
 assert.ok(html.includes('try{raw=decodeURIComponent'), 'Malformed hash protection missing');
-for (const file of ['assets/techstar-icon.svg','404.html','robots.txt','sitemap.xml','site.webmanifest']) {
+for (const file of ['assets/techstar-icon.svg','assets/din-next-arabic.css','404.html','robots.txt','sitemap.xml','site.webmanifest']) {
   assert.ok(readFileSync(file, 'utf8').trim().length > 0, 'Missing or empty website asset: ' + file);
 }
 assert.ok(html.includes('href="./assets/techstar-icon.svg"'), 'Website favicon link missing');
