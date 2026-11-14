@@ -71,6 +71,10 @@ assert.ok(html.includes('المتجر الإلكتروني'),
   'Keep the established e-commerce terminology');
 assert.ok(html.includes('لإدارة نشاطك وتوسّعك.'),
   'Business wording should remain as requested');
+assert.ok(!html.includes('100,000 ر.س'), 'Do not publish fictional sales totals');
+assert.ok(!html.includes('نسبة هدر</small><b>1.8%'), 'Do not publish fictional shrinkage rates');
+assert.ok(html.includes('واجهة توضيحية وليست بيانات تشغيل حقيقية'),
+  'Illustrative dashboard must be clearly labeled');
 assert.ok(html.includes('function loadQuoteDraft()'), 'Quote draft expiration logic missing');
 assert.ok(html.includes('function saveQuoteDraft(form)'), 'Expiring draft save helper missing');
 assert.ok(html.includes('حفظ مسودة لمدة 7 أيام'), 'Draft retention notice missing');
