@@ -60,7 +60,10 @@
    message('جارٍ تحميل الطلبات...');
    const params=new URLSearchParams({offset:String(offset),limit:String(limit)});
    const status=$('status-filter').value,q=$('search').value.trim();
+   const due=$('due-filter').value,assigned=$('assigned-filter').value;
    if(status)params.set('status',status);
+   if(due)params.set('due',due);
+   if(assigned)params.set('assigned',assigned);
    if(q)params.set('q',q);
    try{
      const result=await api('/leads?'+params.toString());
