@@ -39,6 +39,7 @@ jobs:
           cp index.html 404.html robots.txt sitemap.xml site.webmanifest _site/
           cp assets/techstar-icon.svg _site/assets/
           touch _site/.nojekyll
+          printf '{"commit":"%s","branch":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > _site/deployment.json
       - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
@@ -57,8 +58,10 @@ jobs:
           for attempt in $(seq 1 8); do
             if curl --fail --silent --show-error --location --max-time 15 "${SITE_URL}" -o /tmp/techstar-live.html \
               && grep -q 'id="app"' /tmp/techstar-live.html \
-              && grep -q 'home-package-search' /tmp/techstar-live.html; then
-              echo "TechStar live homepage is available (attempt ${attempt})"
+              && grep -q 'home-package-search' /tmp/techstar-live.html \
+              && curl --fail --silent --show-error --location --max-time 15 "${SITE_URL%/}/deployment.json" -o /tmp/techstar-release.json \
+              && grep -Fq "\"commit\":\"${GITHUB_SHA}\"" /tmp/techstar-release.json; then
+              echo "TechStar live homepage at the correct commit ${GITHUB_SHA} (attempt ${attempt})"
               exit 0
             fi
             echo "Site not ready on attempt ${attempt} of 8"
