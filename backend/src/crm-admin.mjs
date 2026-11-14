@@ -98,7 +98,21 @@ async function summary(db){
   ).all();
   const totals=Object.fromEntries(STATUSES.map(s=>[s,0]));
   for(const row of rows.results||[])if(row.status in totals)totals[row.status]=Number(row.total)||0;
-  return json({statuses:totals,total:Object.values(totals).reduce((a,b)=>a+b,0)});
+  const dueBase=" FROM leads WHERE follow_up_at <> '' AND "+
+    "status NOT IN ('won','lost','archived') AND ";
+  const overdue=await db.prepare(
+    "SELECT COUNT(*) AS total"+dueBase+
+    "follow_up_at < strftime('%Y-%m-%dT%H:%M:%fZ','now')"
+  ).first();
+  const upcoming=await db.prepare(
+    "SELECT COUNT(*) AS total"+dueBase+
+    "follow_up_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now') "+
+    "AND follow_up_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','+7 days')"
+  ).first();
+  return json({
+    statuses:totals,total:Object.values(totals).reduce((a,b)=>a+b,0),
+    overdue:Number(overdue?.total)||0,upcoming7Days:Number(upcoming?.total)||0
+  });
 }
 async function changeStatus(request,url,id,env,actor){
   if(actor.role!=="admin")return fail("permission_denied",403);
