@@ -181,6 +181,33 @@ class MigrationTests(unittest.TestCase):
             0
         )
 
+    def test_followup_dashboard_counts_only_open_and_due_records(self):
+        base = (
+            "SELECT COUNT(*) AS total FROM leads WHERE follow_up_at <> '' "
+            "AND status NOT IN ('won','lost','archived') AND "
+        )
+        overdue_sql = (
+            base + "follow_up_at < strftime('%Y-%m-%dT%H:%M:%fZ','now')"
+        )
+        upcoming_sql = (
+            base + "follow_up_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now') "
+            "AND follow_up_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','+7 days')"
+        )
+        self.db.execute(
+            "UPDATE leads SET follow_up_at = strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day') "
+            "WHERE id = 'lead-1'"
+        )
+        self.assertEqual(self.db.execute(overdue_sql).fetchone()[0], 1)
+        self.assertEqual(self.db.execute(upcoming_sql).fetchone()[0], 0)
+        self.db.execute(
+            "UPDATE leads SET follow_up_at = strftime('%Y-%m-%dT%H:%M:%fZ','now','+3 days') "
+            "WHERE id = 'lead-1'"
+        )
+        self.assertEqual(self.db.execute(overdue_sql).fetchone()[0], 0)
+        self.assertEqual(self.db.execute(upcoming_sql).fetchone()[0], 1)
+        self.db.execute("UPDATE leads SET status='archived' WHERE id='lead-1'")
+        self.assertEqual(self.db.execute(upcoming_sql).fetchone()[0], 0)
+
     def test_invalid_branch_count_rejected(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute(
