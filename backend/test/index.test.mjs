@@ -47,7 +47,8 @@ function fakeD1(){
 }
 function configured(db=fakeD1()){
   return {DB:db,TURNSTILE_SECRET:'test-secret',ALLOWED_ORIGINS:ORIGIN,
-    TURNSTILE_HOSTNAME:'sulaimanalsanani.github.io'};
+    TURNSTILE_HOSTNAME:'sulaimanalsanani.github.io',
+    LEAD_RATE_LIMITER:{async limit(){return {success:true}}}};
 }
 
 test('health is readable but reports unconfigured readiness',async()=>{
@@ -91,6 +92,36 @@ test('does not store requests when service is not configured',async()=>{
   const response=await worker.fetch(request('/api/leads','POST',payload()),{});
   assert.equal(response.status,503);
 });
+test('configured health requires D1, Turnstile and a rate limiting binding',async()=>{
+  const env=configured(fakeD1());
+  const good=await worker.fetch(request('/health','GET',undefined,null),env);
+  assert.equal((await good.json()).ready,true);
+  delete env.LEAD_RATE_LIMITER;
+  const bad=await worker.fetch(request('/health','GET',undefined,null),env);
+  assert.equal((await bad.json()).ready,false);
+});
+
+test('rate-limited request returns 429 before Turnstile or storage',async()=>{
+  const db=fakeD1(),env=configured(db);
+  env.LEAD_RATE_LIMITER={async limit({key}){assert.ok(key.startsWith('quote:'));return {success:false}}};
+  const response=await worker.fetch(request('/api/leads','POST',payload()),env);
+  assert.equal(response.status,429);
+  assert.equal((await response.json()).error,'rate_limited');
+  assert.equal(db.leads.size,0);
+});
+
+test('missing or failed rate limit binding fails closed',async()=>{
+  const db=fakeD1(),env=configured(db);
+  delete env.LEAD_RATE_LIMITER;
+  const missing=await worker.fetch(request('/api/leads','POST',payload()),env);
+  assert.equal(missing.status,503);
+  env.LEAD_RATE_LIMITER={async limit(){throw Error('down')}};
+  const failed=await worker.fetch(request('/api/leads','POST',payload()),env);
+  assert.equal(failed.status,503);
+  assert.equal((await failed.json()).error,'rate_limiter_unavailable');
+  assert.equal(db.leads.size,0);
+});
+
 test('rejects honeypot fields before storage',async()=>{
   const db=fakeD1(),env=configured(db);
   const response=await worker.fetch(request('/api/leads','POST',payload({website:'https://spam.invalid'})),env);
