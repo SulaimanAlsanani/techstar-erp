@@ -76,6 +76,8 @@ async function handleLead(request,env,origin) {
     return respond({error:"body_too_large"},413,origin);
   let payload;
   try{payload=JSON.parse(raw)}catch{return respond({error:"invalid_json"},400,origin)}
+  if(!payload || typeof payload!=="object" || Array.isArray(payload))
+    return respond({error:"invalid_fields"},422,origin);
   if(payload.website)return respond({error:"invalid_request"},422,origin);
   const data=validate(payload);
   if(!data)return respond({error:"invalid_fields"},422,origin);
