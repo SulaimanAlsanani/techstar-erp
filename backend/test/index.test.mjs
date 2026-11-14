@@ -79,6 +79,14 @@ test('configured lead endpoint rejects invalid form data',async()=>{
   assert.equal(response.status,422);
   assert.equal(db.leads.size,0);
 });
+test('rejects JSON null and arrays without throwing',async()=>{
+  const env=configured(fakeD1());
+  for(const data of [null,[],42]){
+    const response=await worker.fetch(request('/api/leads','POST',data),env);
+    assert.equal(response.status,422);
+  }
+});
+
 test('does not store requests when service is not configured',async()=>{
   const response=await worker.fetch(request('/api/leads','POST',payload()),{});
   assert.equal(response.status,503);
