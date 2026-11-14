@@ -1,0 +1,22 @@
+/*
+ * TechStar typography: DIN Next Arabic
+ *
+ * This stylesheet activates a licensed copy that the visitor already has
+ * installed locally. It does not bundle proprietary font binaries.
+ * To guarantee the face on every device, supply a web-embedding-licensed
+ * DIN Next Arabic WOFF2 file and update the src declarations accordingly.
+ */
+@font-face {
+  font-family: 'TechStar DIN Next Arabic';
+  src: local('DIN Next Arabic'), local('DINNextArabic-Regular'), local('DIN Next LT Arabic');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'TechStar DIN Next Arabic';
+  src: local('DIN Next Arabic Bold'), local('DINNextArabic-Bold'), local('DIN Next LT Arabic Bold');
+  font-style: normal;
+  font-weight: 700 900;
+  font-display: swap;
+}
