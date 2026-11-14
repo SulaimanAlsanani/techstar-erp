@@ -33,6 +33,8 @@ jobs:
           node-version: '22'
       - name: Validate all six packages and JavaScript
         run: node scripts/check-homepage.mjs
+      - name: Test interactive routes and quote form
+        run: node scripts/check-routes.mjs
       - name: Prepare artifact
         run: |
           mkdir -p _site/assets
