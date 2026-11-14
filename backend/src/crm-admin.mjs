@@ -31,7 +31,8 @@ function formatLead(r,details=false){
   const publicFields={
     id:r.id,reference:r.reference,name:r.name,business:r.business,
     package:r.package_id,status:r.status,branches:r.branches,pos:r.pos_count,
-    createdAt:r.created_at,updatedAt:r.updated_at
+    createdAt:r.created_at,updatedAt:r.updated_at,
+    assignedTo:r.assigned_to||'',followUpAt:r.follow_up_at||'',revision:Number(r.revision)||0
   };
   if(details)return {...publicFields,
     email:r.email,phone:r.phone,industry:r.industry,solution:r.solution_id,notes:r.notes};
@@ -56,7 +57,7 @@ async function listLeads(url,db){
     for(let i=0;i<5;i++)binds.push("%"+escaped+"%");
   }
   const sqlWhere=where.length?" WHERE "+where.join(" AND "):"";
-  const list=await db.prepare("SELECT id,reference,name,business,package_id,status,branches,pos_count,created_at,updated_at FROM leads"+
+  const list=await db.prepare("SELECT id,reference,name,business,package_id,status,branches,pos_count,created_at,updated_at,assigned_to,follow_up_at,revision FROM leads"+
     sqlWhere+" ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?")
     .bind(...binds,limit,offset).all();
   const count=await db.prepare("SELECT COUNT(*) AS total FROM leads"+sqlWhere).bind(...binds).first();
@@ -113,7 +114,7 @@ async function changeStatus(request,url,id,env,actor){
 
   const auditId=crypto.randomUUID();
   const update=env.DB.prepare(
-    "UPDATE leads SET status = ?, updated_at = datetime('now') WHERE id = ? AND status = ?"
+    "UPDATE leads SET status = ?, updated_at = datetime('now'), revision = revision + 1 WHERE id = ? AND status = ?"
   ).bind(body.status,id,body.previousStatus);
   // The INSERT uses SQLite changes() on the prior UPDATE within a D1 atomic batch.
   // A conflicting UPDATE therefore cannot produce a false audit event.
@@ -125,6 +126,82 @@ async function changeStatus(request,url,id,env,actor){
   if(results?.[0]?.meta?.changes!==1)return fail("status_conflict",409);
   if(results?.[1]?.meta?.changes!==1)return fail("audit_unavailable",503);
   return json({updated:true,id,status:body.status});
+}
+
+
+function allowlistedStaff(email,env){
+  if(!email)return true;
+  const all=[env.CRM_ADMIN_EMAILS,env.CRM_VIEWER_EMAILS]
+    .flatMap(value=>String(value||"").split(","))
+    .map(e=>e.trim().toLowerCase());
+  return all.includes(email);
+}
+function validDueDate(value){
+  if(value==="")return true;
+  if(typeof value!=="string"||!/^20\d\d-(0[1-9]|1[0-2])-([0-2]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d\.000Z$/.test(value))
+    return false;
+  const date=new Date(value);
+  return Number.isFinite(date.valueOf())&&date.toISOString()===value;
+}
+async function followUpHistory(id,db){
+  if(badPath(id))return fail("invalid_id",422);
+  const lead=await db.prepare("SELECT id FROM leads WHERE id = ?").bind(id).first();
+  if(!lead)return fail("lead_not_found",404);
+  const rows=await db.prepare(
+    "SELECT id,actor_email,previous_assignee,new_assignee,previous_due,new_due,created_at "+
+    "FROM lead_followup_audit WHERE lead_id = ? ORDER BY created_at DESC,id DESC LIMIT 100"
+  ).bind(id).all();
+  return json({events:(rows.results||[]).map(r=>({
+    id:r.id,actor:r.actor_email,fromAssignee:r.previous_assignee,
+    toAssignee:r.new_assignee,fromDue:r.previous_due,toDue:r.new_due,
+    createdAt:r.created_at
+  }))});
+}
+async function changeFollowUp(request,url,id,env,actor){
+  if(actor.role!=="admin")return fail("permission_denied",403);
+  if(badPath(id))return fail("invalid_id",422);
+  const origin=request.headers.get("origin");
+  if(origin&&origin!==url.origin)return fail("origin_not_allowed",403);
+  if(request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")
+    return fail("invalid_content_type",415);
+  const length=Number(request.headers.get("content-length"));
+  if(Number.isFinite(length)&&length>768)return fail("invalid_body",413);
+  let body;
+  try{
+    const content=await request.text();
+    if(new TextEncoder().encode(content).length>768)return fail("invalid_body",413);
+    body=JSON.parse(content);
+  }catch{return fail("invalid_json",400)}
+  if(!body||typeof body!=="object"||Array.isArray(body))return fail("invalid_fields",422);
+  const assignedTo=typeof body.assignedTo==="string"?body.assignedTo.trim().toLowerCase():null;
+  const followUpAt=body.followUpAt;
+  const revision=body.revision;
+  if(assignedTo===null||assignedTo.length>150||
+     (assignedTo!==""&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(assignedTo))||
+     !allowlistedStaff(assignedTo,env)||!validDueDate(followUpAt)||
+     !Number.isSafeInteger(revision)||revision<0)
+    return fail("invalid_fields",422);
+  const old=await env.DB.prepare(
+    "SELECT assigned_to,follow_up_at,revision FROM leads WHERE id = ?"
+  ).bind(id).first();
+  if(!old)return fail("lead_not_found",404);
+  if(old.revision!==revision)return fail("revision_conflict",409);
+  if((old.assigned_to||"")===assignedTo&&(old.follow_up_at||"")===followUpAt)
+    return fail("no_change",422);
+  const update=env.DB.prepare(
+    "UPDATE leads SET assigned_to = ?, follow_up_at = ?, revision = revision + 1, "+
+    "updated_at = datetime('now') WHERE id = ? AND revision = ?"
+  ).bind(assignedTo,followUpAt,id,revision);
+  const audit=env.DB.prepare(
+    "INSERT INTO lead_followup_audit "+
+    "(id,lead_id,actor_email,previous_assignee,new_assignee,previous_due,new_due) "+
+    "SELECT ?,id,?,?,?,?,? FROM leads WHERE id = ? AND revision = ? AND changes() = 1"
+  ).bind(crypto.randomUUID(),actor.email,old.assigned_to||"",assignedTo,
+    old.follow_up_at||"",followUpAt,id,revision+1);
+  const results=await env.DB.batch([update,audit]);
+  if(results?.[0]?.meta?.changes!==1)return fail("revision_conflict",409);
+  if(results?.[1]?.meta?.changes!==1)return fail("audit_unavailable",503);
+  return json({updated:true,id,assignedTo,followUpAt,revision:revision+1});
 }
 
 /* No CORS on these routes. They are intended for a Cloudflare Access-protected
@@ -143,6 +220,12 @@ export async function handleAdminAPI(request,env,url){
     if(segments.length===4&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"){
       if(request.method==="GET")return leadDetail(segments[3],env.DB);
       if(request.method==="PATCH")return changeStatus(request,url,segments[3],env,auth);
+    }
+    if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="followup"){
+      if(request.method==="PATCH")return changeFollowUp(request,url,segments[3],env,auth);
+    }
+    if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="followup-history"){
+      if(request.method==="GET")return followUpHistory(segments[3],env.DB);
     }
     if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="audit"){
       if(request.method==="GET")return auditLog(segments[3],env.DB);
