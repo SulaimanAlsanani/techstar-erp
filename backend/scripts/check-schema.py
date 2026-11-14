@@ -48,7 +48,7 @@ def change_status(db, previous, desired, event_id="audit-1"):
         update = db.execute(UPDATE_QUERY, (desired, "lead-1", previous))
         audit = db.execute(
             AUDIT_QUERY,
-            (event_id, "lead-1", "staff@example.test", previous, desired, "lead-1", desired)
+            (event_id, "staff@example.test", previous, desired, "lead-1", desired)
         )
         return update.rowcount, audit.rowcount
 
