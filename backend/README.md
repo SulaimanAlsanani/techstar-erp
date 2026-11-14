@@ -42,6 +42,34 @@ python scripts/check-staging.py --require-ready
 
 الاختبارات تتحقق من توقيع Access JWT الحقيقي باستخدام مفتاح RSA للاختبار، والصلاحيات، والتصدي لتزوير الهوية، وتغييرات الحالات وتضاربها، وواجهات الطلبات العامة، وعمليات SQLite الفعلية وقيودها وتدقيق التغييرات، وسياسة الحذف الاختيارية.
 
+## نشر مستقل إلى Cloudflare Staging (تشغيل يدوي فقط)
+
+أضيف مسار GitHub Actions باسم [**TechStar Cloudflare staging (manual only)**](../.github/workflows/staging-worker.yml)؛ لا يعمل عند push أو دمج التعديلات، بل فقط عبر `Run workflow` وبعد إعداد حساب Cloudflare.
+
+أنشئ على Cloudflare قاعدة **D1 تجريبية منفصلة** باسم `techstar-leads-staging`، واستخدم اسم Worker `techstar-public-api-staging`. ثم في GitHub أنشئ Environment باسم `cloudflare-staging` وضع فيه المتغيرات التالية:
+
+| نوع الإعداد | الاسم | القيمة |
+|---|---|---|
+| Secret | `CLOUDFLARE_API_TOKEN` | رمز Cloudflare بصلاحيات مقيدة لمورد Staging |
+| Secret | `CLOUDFLARE_ACCOUNT_ID` | معرّف حساب Cloudflare |
+| Variable | `TECHSTAR_STAGING_D1_ID` | UUID لقاعدة D1 التجريبية فقط |
+| Variable | `TECHSTAR_STAGING_RATE_NAMESPACE` | رقم namespace موجب وفريد للتجربة |
+
+عند تشغيل `Run workflow` يمكن اختيار **Apply migrations** إذا أردت تطبيق الـMigrations على D1 التجريبية؛ الافتراضي **false**. يبدأ المسار بتشغيل الاختبارات، ثم توليد `.wrangler-staging.toml` مؤقت ومهمل من Git، وبعد التحقق ينشر Worker التجريبي فقط. لا يغيّر إعدادات الموقع المنشور على GitHub Pages ولا يرسل بيانات حقيقية إلى D1 تلقائيًا.
+
+**قفل إلزامي:** `LEAD_INGESTION_ENABLED = "false"` في كل إعدادات Staging. يبقى `POST /api/leads` معطّلًا عمدًا حتى لو كانت قاعدة البيانات وTurnstile مجهزتين. سيظهر `ready:false` في `GET /health` بهذا الوضع، وهو سلوك متوقع وليس فشلًا بالنشر.
+
+لتحضير ملف Staging على جهاز موثوق من دون نشره:
+
+```bash
+export TECHSTAR_STAGING_D1_ID="UUID-للقاعدة-التجريبية"
+export TECHSTAR_STAGING_RATE_NAMESPACE="1002"
+python backend/scripts/prepare-staging.py
+python backend/scripts/check-staging.py --config backend/.wrangler-staging.toml --require-ready
+```
+
+هذا الفحص **لا يتحقق من صلاحية رموز Cloudflare أو من تشغيل Access/Turnstile**؛ يجب اختبارها على Staging بعد إعدادها. لا تفعّل استقبال الطلبات أو تربط الموقع العام حتى تُعتمد الضوابط التشغيلية وسياسة الخصوصية وأذونات الوصول.
+
 ## تهيئة Cloudflare قبل التجربة
 
 1. اعتمد الجهة المسؤولة عن بيانات العملاء والبيان القانوني وفترة الاحتفاظ والنسخ الاحتياطي والإجراءات التشغيلية.
@@ -62,7 +90,7 @@ python scripts/check-staging.py --require-ready
 يفحص الـWorker توقيع JWT بخوارزمية RS256 من مفاتيح Cloudflare، ثم مطابقة جهة الإصدار وAudience والمدة والبريد مع القائمة المعتمدة. **أي نقص في الإعدادات يؤدي إلى رفض الدخول**.
 
 7. اختبر مسارات الإدارة بموظف إداري، وموظف قراءة فقط، ومستخدم غير مصرح به. اختبر عدم ظهور بيانات CRM في الموقع العام.
-8. بعد مراجعة معدل الطلبات، والنسخ الاحتياطي، والرقابة التشغيلية، ونقل بيانات الاختبار فقط، اربط عنوان الخدمة المنشورة في `window.TECHSTAR_CONFIG.apiBaseUrl`، ومفتاح Turnstile العام في `turnstileSiteKey`.
+8. بعد مراجعة معدل الطلبات، والنسخ الاحتياطي، والرقابة التشغيلية، واعتماد بدء جمع البيانات، يصبح تفعيل `LEAD_INGESTION_ENABLED=true` قرارًا صريحًا **لبيئة الإنتاج المعتمدة فقط**؛ لا تغيّر إعداد Staging الذي يجب أن يبقى مغلقًا. ثم اربط عنوان الخدمة المنشورة في `window.TECHSTAR_CONFIG.apiBaseUrl`، ومفتاح Turnstile العام في `turnstileSiteKey`.
 
 ### حذف الطلبات المغلقة — معطّل افتراضيًا
 
