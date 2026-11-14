@@ -137,6 +137,7 @@ export async function handleAdminAPI(request,env,url){
   const path=url.pathname;
   const segments=path.split("/").filter(Boolean);
   try{
+    if(path==="/admin/api/me"&&request.method==="GET")return json({email:auth.email,role:auth.role});
     if(path==="/admin/api/summary"&&request.method==="GET")return summary(env.DB);
     if(path==="/admin/api/leads"&&request.method==="GET")return listLeads(url,env.DB);
     if(segments.length===4&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"){
