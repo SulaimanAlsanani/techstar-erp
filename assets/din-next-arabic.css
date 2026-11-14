@@ -1,22 +1,40 @@
 /*
- * TechStar typography: DIN Next Arabic
- *
- * This stylesheet activates a licensed copy that the visitor already has
- * installed locally. It does not bundle proprietary font binaries.
- * To guarantee the face on every device, supply a web-embedding-licensed
- * DIN Next Arabic WOFF2 file and update the src declarations accordingly.
+ * DIN Next Arabic — local installation only.
+ * Verified metadata from user-provided DIN Next LT W23 files:
+ *   Regular: DIN Next LT W23 Regular / DINNextLTW23-Regular
+ *   Medium:  DIN Next LT W23 Medium  / DINNextLTW23-Medium
+ *   Bold:    DIN Next LT W23 Bold 2  / DINNextLTW23-Bold2
+ * Copyright Linotype GmbH. These local() declarations do not distribute fonts.
+ * A licensed Webfont and permission to self-host are required to make the typeface
+ * available to visitors who have not installed it themselves.
  */
 @font-face {
   font-family: 'TechStar DIN Next Arabic';
-  src: local('DIN Next Arabic'), local('DINNextArabic-Regular'), local('DIN Next LT Arabic');
+  src: local('DIN Next LT W23 Regular'),
+       local('DINNextLTW23-Regular'),
+       local('DIN NEXT™ ARABIC REGULAR'),
+       local('DIN Next Arabic');
   font-style: normal;
   font-weight: 400;
   font-display: swap;
 }
 @font-face {
   font-family: 'TechStar DIN Next Arabic';
-  src: local('DIN Next Arabic Bold'), local('DINNextArabic-Bold'), local('DIN Next LT Arabic Bold');
+  src: local('DIN Next LT W23 Medium'),
+       local('DINNextLTW23-Medium'),
+       local('DIN NEXT™ ARABIC MEDIUM'),
+       local('DIN Next Arabic Medium');
   font-style: normal;
-  font-weight: 700 900;
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'TechStar DIN Next Arabic';
+  src: local('DIN Next LT W23 Bold 2'),
+       local('DINNextLTW23-Bold2'),
+       local('DIN NEXT™ ARABIC BOLD'),
+       local('DIN Next Arabic Bold');
+  font-style: normal;
+  font-weight: 700;
   font-display: swap;
 }
