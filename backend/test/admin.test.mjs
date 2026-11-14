@@ -40,14 +40,15 @@ const seed={
   id:LEAD_ID,reference:"TS-EXAMPLE",name:"User",business:"Test",
   email:"client@business.test",phone:"0500000000",industry:"store",package_id:"gold",
   solution_id:"pos",branches:2,pos_count:3,notes:"Test note",status:"new",
-  created_at:"2026-11-14 00:00:00",updated_at:""
+  created_at:"2026-11-14 00:00:00",updated_at:"",assigned_to:"",follow_up_at:"",revision:0
 };
 function fakeDB(){
  const lead={...seed};
  const audit=[];
+ const followupAudit=[];
  let lastUpdate=0;
  return {
-  lead,audit,
+  lead,audit,followupAudit,
   prepare(sql){
    let args=[];
    return {
@@ -57,11 +58,14 @@ function fakeDB(){
       if(sql.includes("SELECT id FROM leads"))return args[0]===lead.id?{id:lead.id}:null;
       if(sql.includes("SELECT * FROM leads"))return args[0]===lead.id?lead:null;
       if(sql.includes("SELECT status FROM leads"))return args[0]===lead.id?{status:lead.status}:null;
+      if(sql.includes("SELECT assigned_to,follow_up_at,revision FROM leads"))
+        return args[0]===lead.id?{assigned_to:lead.assigned_to,follow_up_at:lead.follow_up_at,revision:lead.revision}:null;
       throw Error("Unexpected first() query: "+sql);
     },
     async all(){
       if(sql.includes("GROUP BY status"))return {results:[{status:lead.status,total:1}]};
       if(sql.includes("FROM lead_audit"))return {results:audit};
+      if(sql.includes("FROM lead_followup_audit"))return {results:followupAudit};
       if(sql.includes("FROM leads")&&sql.includes("ORDER BY"))
         return {results:[{...lead}]};
       throw Error("Unexpected all() query: "+sql);
@@ -75,9 +79,22 @@ function fakeDB(){
   async batch(statements){
    assert.equal(statements.length,2);
    const [update,insert]=statements;
+   if(update.sql.includes("SET assigned_to")){
+     const changed=lead.id===update.args[2]&&lead.revision===update.args[3];
+     if(changed){
+       followupAudit.push({id:insert.args[0],actor_email:insert.args[1],
+         previous_assignee:insert.args[2],new_assignee:insert.args[3],
+         previous_due:insert.args[4],new_due:insert.args[5],
+         created_at:"2026-11-14 12:00:00"});
+       lead.assigned_to=update.args[0];lead.follow_up_at=update.args[1];
+       lead.revision++;
+     }
+     return [{meta:{changes:changed?1:0}},{meta:{changes:changed?1:0}}];
+   }
    if(lead.id===update.args[1]&&lead.status===update.args[2]){
      lead.status=update.args[0];
      lead.updated_at="2026-11-14 12:00:00";
+     lead.revision++;
      lastUpdate=1;
    }else lastUpdate=0;
    if(lastUpdate){
@@ -212,4 +229,74 @@ test("invalid, expired, unauthorized, tampered or wrong-audience JWTs fail",asyn
  const good=await sign(ADMIN);
  const tampered=good.slice(0,-5)+"AAAAA";
  assert.equal((await worker.fetch(request("/admin/api/me","GET",tampered),env(db))).status,401);
+});
+
+
+test("admin can assign a lead and set a UTC follow-up with revision and audit",async()=>{
+ const token=await sign(ADMIN),db=fakeDB();
+ const due="2026-12-11T11:30:00.000Z";
+ const requestBody={assignedTo:VIEWER,followUpAt:due,revision:0};
+ const result=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/followup",
+   "PATCH",token,requestBody),env(db));
+ assert.equal(result.status,200);
+ assert.deepEqual(await result.json(),{updated:true,id:LEAD_ID,assignedTo:VIEWER,followUpAt:due,revision:1});
+ assert.equal(db.lead.assigned_to,VIEWER);
+ assert.equal(db.lead.follow_up_at,due);
+ assert.equal(db.followupAudit.length,1);
+ assert.equal(db.followupAudit[0].actor_email,ADMIN);
+ const history=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/followup-history",
+   "GET",token),env(db));
+ assert.equal(history.status,200);
+ const events=(await history.json()).events;
+ assert.equal(events[0].toAssignee,VIEWER);
+ assert.equal(events[0].toDue,due);
+ const repeat=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/followup",
+   "PATCH",token,requestBody),env(db));
+ assert.equal(repeat.status,409);
+ assert.equal(db.followupAudit.length,1);
+});
+
+test("viewer cannot assign a lead, but can inspect its follow-up history",async()=>{
+ const token=await sign(VIEWER),db=fakeDB();
+ const denied=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/followup",
+   "PATCH",token,{assignedTo:ADMIN,followUpAt:"",revision:0}),env(db));
+ assert.equal(denied.status,403);
+ assert.equal(db.followupAudit.length,0);
+ const history=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/followup-history",
+   "GET",token),env(db));
+ assert.equal(history.status,200);
+ assert.deepEqual(await history.json(),{events:[]});
+});
+
+test("follow-up input blocks invalid dates, non-staff emails, no-op and bad Origin",async()=>{
+ const token=await sign(ADMIN),db=fakeDB();
+ for(const requestBody of [
+   {assignedTo:"outsider@example.test",followUpAt:"",revision:0},
+   {assignedTo:ADMIN,followUpAt:"2026-02-31T09:00:00.000Z",revision:0},
+   {assignedTo:ADMIN,followUpAt:"2026-11-20",revision:0},
+   {assignedTo:ADMIN,followUpAt:"",revision:-1}
+ ]){
+   const response=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/followup",
+     "PATCH",token,requestBody),env(db));
+   assert.equal(response.status,422);
+ }
+ const noChange=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/followup",
+   "PATCH",token,{assignedTo:"",followUpAt:"",revision:0}),env(db));
+ assert.equal(noChange.status,422);
+ const crossSite=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/followup",
+   "PATCH",token,{assignedTo:ADMIN,followUpAt:"",revision:0},
+   "https://attacker.invalid"),env(db));
+ assert.equal(crossSite.status,403);
+ assert.equal(db.followupAudit.length,0);
+});
+
+test("status changes increment revision so stale follow-up edits are rejected",async()=>{
+ const token=await sign(ADMIN),db=fakeDB();
+ const changed=await worker.fetch(request("/admin/api/leads/"+LEAD_ID,"PATCH",token,
+   {previousStatus:"new",status:"in_progress"}),env(db));
+ assert.equal(changed.status,200);
+ assert.equal(db.lead.revision,1);
+ const stale=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/followup",
+   "PATCH",token,{assignedTo:ADMIN,followUpAt:"",revision:0}),env(db));
+ assert.equal(stale.status,409);
 });
