@@ -48,3 +48,21 @@ jobs:
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify published homepage
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          echo "Checking deployed homepage at ${SITE_URL}"
+          for attempt in $(seq 1 8); do
+            if curl --fail --silent --show-error --location --max-time 15 "${SITE_URL}" -o /tmp/techstar-live.html \
+              && grep -q 'id="app"' /tmp/techstar-live.html \
+              && grep -q 'home-package-search' /tmp/techstar-live.html; then
+              echo "TechStar live homepage is available (attempt ${attempt})"
+              exit 0
+            fi
+            echo "Site not ready on attempt ${attempt} of 8"
+            sleep 12
+          done
+          echo "::error::GitHub Pages did not serve the latest TechStar homepage."
+          exit 1
