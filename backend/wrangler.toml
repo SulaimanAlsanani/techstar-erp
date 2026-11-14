@@ -5,6 +5,8 @@ compatibility_date = "2026-11-01"
 [vars]
 ALLOWED_ORIGINS = "https://sulaimanalsanani.github.io"
 TURNSTILE_HOSTNAME = "sulaimanalsanani.github.io"
+# Must be explicitly approved before real lead ingestion.
+LEAD_INGESTION_ENABLED = "false"
 
 # Replace the D1 database id after creating the actual Cloudflare D1 database.
 # Never add TURNSTILE_SECRET or other secrets to this file.
