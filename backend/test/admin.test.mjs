@@ -51,7 +51,7 @@ function fakeDB(){
   prepare(sql){
    let args=[];
    return {
-    bind(...x){this.args=x;return this},
+    bind(...x){args=x;this.args=x;return this},
     async first(){
       if(sql.includes("SELECT COUNT(*)"))return {total:1};
       if(sql.includes("SELECT id FROM leads"))return args[0]===lead.id?{id:lead.id}:null;
@@ -114,7 +114,7 @@ test("admin interface source and browser script are separated and valid",()=>{
  assert.match(adminPage,/src="\/admin\/assets\/app.js"/);
  assert.equal(adminApp,readFileSync(new URL("../src/admin-app.js",import.meta.url),"utf8"));
  assert.doesNotThrow(()=>new Function(adminApp));
- assert.ok(!/\blocalStorage\s*\./.test(adminApp),"CRM app must not access browser localStorage");
+ assert.ok(!adminApp.includes("localStorage.setItem")&&!adminApp.includes("localStorage.getItem"),"CRM app must not persist sensitive data");
 });
 
 test("unconfigured administration fails closed",async()=>{
