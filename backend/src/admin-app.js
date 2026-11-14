@@ -49,6 +49,14 @@
  async function loadSummary(){
    const result=await api('/summary');
    const wrap=$('statistics');wrap.replaceChildren();
+   for(const [value,label] of [
+     [result.overdue??0,'متابعات متأخرة'],
+     [result.upcoming7Days??0,'متابعات خلال 7 أيام']
+   ]){
+     const card=node('div',undefined,'stat');
+     card.append(node('strong',value),node('span',label));
+     wrap.append(card);
+   }
    for(const key of Object.keys(statuses)){
      const card=node('div',undefined,'stat');
      card.append(node('strong',result.statuses?.[key]??0),node('span',statuses[key]));
