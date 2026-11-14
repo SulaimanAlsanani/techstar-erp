@@ -18,3 +18,5 @@ __pycache__/
 .dev.vars
 .dev.vars.*
 .wrangler/
+.wrangler-staging.toml
+
