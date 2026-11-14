@@ -71,6 +71,29 @@ assert.ok(html.includes('المتجر الإلكتروني'),
   'Keep the established e-commerce terminology');
 assert.ok(html.includes('لإدارة نشاطك وتوسّعك.'),
   'Business wording should remain as requested');
+assert.ok(html.includes('function loadQuoteDraft()'), 'Quote draft expiration logic missing');
+assert.ok(html.includes('function saveQuoteDraft(form)'), 'Expiring draft save helper missing');
+assert.ok(html.includes('حفظ مسودة لمدة 7 أيام'), 'Draft retention notice missing');
+const draftSource = jsSource.match(/const DRAFT_MAX_AGE=[\s\S]*?\n\}/g);
+assert.ok(draftSource && draftSource.length >= 2, 'Expected draft functions in application source');
+const draftCode = draftSource.slice(0,2).join('\n');
+const map = new Map();
+const store = {
+  getItem: key => map.has(key) ? map.get(key) : null,
+  setItem: (key,value) => map.set(key,value),
+  removeItem: key => map.delete(key)
+};
+const now = 1_800_000_000_000;
+const loadDraft = new Function('localStorage','Date',draftCode + '\nreturn loadQuoteDraft;')(store,{now:()=>now});
+const key='techstar_quote_draft';
+map.set(key,JSON.stringify({version:2,savedAt:now-1000,fields:{business:'فعال'}}));
+assert.equal(loadDraft().business,'فعال');
+map.set(key,JSON.stringify({version:2,savedAt:now-8*24*60*60*1000,fields:{business:'قديم'}}));
+assert.equal(loadDraft(),null,'Expired drafts must be discarded');
+assert.ok(!map.has(key),'Expired drafts must be removed');
+map.set(key,JSON.stringify({business:'مسودة سابقة'}));
+assert.equal(loadDraft().business,'مسودة سابقة');
+assert.equal(JSON.parse(map.get(key)).version,2,'Legacy drafts should be migrated');
 assert.ok(html.includes('id="skip-to-content"'), 'Accessible skip-to-content button missing');
 assert.ok(!html.includes('href="#main"'), 'Skip button must not change the hash router');
 assert.ok(html.includes('try{raw=decodeURIComponent'), 'Malformed hash protection missing');
