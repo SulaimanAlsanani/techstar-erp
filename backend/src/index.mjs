@@ -2,6 +2,7 @@ import {adminConfigured,authenticateAdmin} from "./admin-auth.mjs";
 import {handleAdminAPI} from "./crm-admin.mjs";
 import {adminPage} from "./admin-page.mjs";
 import {adminApp} from "./admin-app.mjs";
+import {purgeClosedLeads} from "./retention.mjs";
 
 /* TechStar MVP lead-ingestion API. Staging-first: do not expose until D1 and
    Turnstile are configured and privacy, retention, and operational controls approved. */
@@ -147,5 +148,10 @@ export default {
     if(url.pathname==="/api/leads"&&request.method==="POST")
       return handleLead(request,env,origin);
     return respond({error:"not_found"},404,origin);
+  },
+  async scheduled(_controller,env={},ctx){
+    const work=purgeClosedLeads(env);
+    if(ctx?.waitUntil)ctx.waitUntil(work);
+    else await work;
   }
 };
