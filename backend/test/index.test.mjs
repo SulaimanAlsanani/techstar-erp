@@ -46,7 +46,7 @@ function fakeD1(){
   };
 }
 function configured(db=fakeD1()){
-  return {DB:db,TURNSTILE_SECRET:'test-secret',ALLOWED_ORIGINS:ORIGIN,
+  return {DB:db,LEAD_INGESTION_ENABLED:'true',TURNSTILE_SECRET:'test-secret',ALLOWED_ORIGINS:ORIGIN,
     TURNSTILE_HOSTNAME:'sulaimanalsanani.github.io',
     LEAD_RATE_LIMITER:{async limit(){return {success:true}}}};
 }
@@ -86,6 +86,17 @@ test('rejects JSON null and arrays without throwing',async()=>{
     const response=await worker.fetch(request('/api/leads','POST',data),env);
     assert.equal(response.status,422);
   }
+});
+
+test('lead collection is denied until explicit opt-in even with all bindings',async()=>{
+  const db=fakeD1(),env=configured(db);
+  env.LEAD_INGESTION_ENABLED='false';
+  const result=await worker.fetch(request('/api/leads','POST',payload()),env);
+  assert.equal(result.status,503);
+  assert.equal((await result.json()).error,'lead_ingestion_disabled');
+  const health=await worker.fetch(request('/health','GET',undefined,null),env);
+  assert.equal((await health.json()).ready,false);
+  assert.equal(db.leads.size,0);
 });
 
 test('does not store requests when service is not configured',async()=>{
