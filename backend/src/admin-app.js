@@ -49,12 +49,20 @@
  async function loadSummary(){
    const result=await api('/summary');
    const wrap=$('statistics');wrap.replaceChildren();
-   for(const [value,label] of [
-     [result.overdue??0,'متابعات متأخرة'],
-     [result.upcoming7Days??0,'متابعات خلال 7 أيام']
+   for(const [value,label,filter] of [
+     [result.overdue??0,'متابعات متأخرة','overdue'],
+     [result.upcoming7Days??0,'متابعات خلال 7 أيام','upcoming7']
    ]){
-     const card=node('div',undefined,'stat');
-     card.append(node('strong',value),node('span',label));
+     const card=node('button',undefined,'stat stat-action');
+     card.type='button';
+     card.setAttribute('aria-label',label+' — '+value+' — عرض الطلبات');
+     card.append(node('strong',value),node('span',label+' · عرض الطلبات'));
+     card.addEventListener('click',()=>{
+       $('due-filter').value=filter;
+       offset=0;
+       loadLeads();
+       $('filters').scrollIntoView({behavior:'smooth',block:'start'});
+     });
      wrap.append(card);
    }
    for(const key of Object.keys(statuses)){
