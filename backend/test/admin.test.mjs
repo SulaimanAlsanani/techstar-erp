@@ -713,5 +713,5 @@ test("CRM activity UI renders untrusted text through DOM textContent",()=>{
  assert.match(adminPage,/id="activity-timeline"/);
  assert.match(adminApp,/function renderTimeline/);
  assert.match(adminApp,/event.kind==='completion'/);
- assert.match(adminApp,/node\\('p',desc,'note-text'\\)/);
+ assert.ok(adminApp.includes("node('p',desc,'note-text')"));
 });
