@@ -23,6 +23,8 @@
 | `PATCH /admin/api/leads/:id` | تغيير الحالة مع التدقيق | مدير فقط |
 | `PATCH /admin/api/leads/:id/followup` | تعيين موظف وموعد متابعة مع فحص Revision | مدير فقط |
 | `GET /admin/api/leads/:id/followup-history` | سجل تعيينات المتابعة | قراءة/مدير |
+| `POST /admin/api/leads/:id/complete-followup` | إنجاز متابعة مجدولة مع فحص Revision وسجل مستقل | مدير فقط |
+| `GET /admin/api/leads/:id/followup-completions` | سجل مواعيد المتابعة المنجزة والموظف المنفّذ | قراءة/مدير |
 | `GET /admin/api/leads/export.csv` | تصدير CSV حتى 500 طلب وفق المرشحات مع تدقيق | مدير فقط |
 | `GET /admin/api/exports` | آخر 50 عملية تصدير (من/متى/كم) | مدير فقط |
 | `GET /admin/api/leads/:id/notes` | استعراض آخر 100 ملاحظة داخلية | قراءة/مدير |
@@ -85,7 +87,7 @@ python backend/scripts/check-staging.py --config backend/.wrangler-staging.toml 
 
 1. اعتمد الجهة المسؤولة عن بيانات العملاء والبيان القانوني وفترة الاحتفاظ والنسخ الاحتياطي والإجراءات التشغيلية.
 2. أنشئ قاعدة D1 باسم `techstar-leads` واستبدل `REPLACE_WITH_YOUR_D1_DATABASE_ID` بالمعرّف الحقيقي في `wrangler.toml`.
-3. طبّق ملفات `migrations/0001_leads.sql` ثم `migrations/0002_crm_audit.sql` ثم `migrations/0003_crm_followup.sql` ثم `migrations/0004_crm_exports.sql` ثم `migrations/0005_crm_notes.sql` بالترتيب على **بيئة Staging أولًا**.
+3. طبّق ملفات `migrations/0001_leads.sql` ثم `migrations/0002_crm_audit.sql` ثم `migrations/0003_crm_followup.sql` ثم `migrations/0004_crm_exports.sql` ثم `migrations/0005_crm_notes.sql` ثم `migrations/0006_followup_completions.sql` بالترتيب على **بيئة Staging أولًا**.
 4. أنشئ Cloudflare Turnstile واضبط `TURNSTILE_SECRET` سرًّا، و`TURNSTILE_HOSTNAME` و`ALLOWED_ORIGINS` على نطاق الموقع المعتمد.
    اضبط كذلك معرّف namespace رقميًا وفريدًا في `[[ratelimits]]` داخل `wrangler.toml`. يُطلب الآن ربط `LEAD_RATE_LIMITER` قبل استقبال أي طلب: الحد الابتدائي 6 محاولات في 60 ثانية لكل IP وفق حدود Cloudflare التقريبية. غياب الـBinding يمنع الاستقبال ويجعل `/health` يُرجع `ready:false`. راجع سياسة الحد المناسبة قبل الإنتاج.
 5. أنشئ تطبيق Cloudflare Access يحمي `/admin/*` على نطاق الـWorker، ويقتصر على موظفي الشركة المصرح لهم. **لا تعتمد على إخفاء رابط /admin**.
@@ -102,6 +104,14 @@ python backend/scripts/check-staging.py --config backend/.wrangler-staging.toml 
 
 7. اختبر مسارات الإدارة بموظف إداري، وموظف قراءة فقط، ومستخدم غير مصرح به. اختبر عدم ظهور بيانات CRM في الموقع العام.
 8. بعد مراجعة معدل الطلبات، والنسخ الاحتياطي، والرقابة التشغيلية، واعتماد بدء جمع البيانات، يصبح تفعيل `LEAD_INGESTION_ENABLED=true` قرارًا صريحًا **لبيئة الإنتاج المعتمدة فقط**؛ لا تغيّر إعداد Staging الذي يجب أن يبقى مغلقًا. ثم اربط عنوان الخدمة المنشورة في `window.TECHSTAR_CONFIG.apiBaseUrl`، ومفتاح Turnstile العام في `turnstileSiteKey`.
+
+### إنجاز المتابعة المجدولة
+
+يتيح CRM للمدير النقر على **إنجاز المتابعة الحالية** بعد انتهاء الاتصال أو الإجراء المطلوب. يتلقى المسار `POST /admin/api/leads/:id/complete-followup` جسم الطلب `{"revision":0}` بعد قراءة آخر إصدار للطلب؛ وعند النجاح يُزيل الموعد الحالي من قائمة المتابعات المفتوحة، مع الاحتفاظ بالموعد السابق واسم الموظف وتاريخ الإنجاز في `lead_followup_completions`.
+
+العملية محمية بصلاحية المدير، وJWT، وOrigin، ورقم Revision لمنع تنفيذ متابعة مرتين أو تأكيد متابعة عدّلها موظف آخر. لا تقبل إكمال طلب ليس لديه موعد، أو طلب مغلق بحالة `won` أو `lost` أو `archived`. عند الحاجة إلى متابعة إضافية يُجدول المدير موعدًا جديدًا.
+
+سجل الإنجاز **لا يقبل التعديل** بعد الحفظ؛ وحذف العميل وفق سياسة الاحتفاظ المعتمدة قد يحذف السجلات المرتبطة به. أضف `0006_followup_completions.sql` إلى D1 التجريبية قبل تفعيل مسارات الإدارة الجديدة.
 
 ### تصدير بيانات CRM وملاحظات المتابعة
 
