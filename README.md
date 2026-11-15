@@ -62,6 +62,18 @@ python scripts/prepare-licensed-din-webfonts.py "regular.ttf" "medium.ttf" "bold
 
 **حماية نموذج طلب العرض:** يتأكد الموقع من إعداد عنوان API آمن عبر HTTPS ومن مفتاح Turnstile العام، ولا يسمح بالإرسال الإلكتروني قبل إتمام اختبار الحماية. عند غياب الإعدادات أو تعطل اختبار الحماية يستطيع الزائر تجهيز ملخص الطلب محليًا دون الإيحاء بأنه أُرسل. يغطي الاختبار الآلي `scripts/check-contact-contract.mjs` توافق الحقول وحالات انتهاء صلاحية Turnstile وأخطاء تحميله.
 
+## روابط الإصدار والتحقق من النشر
+
+- **الموقع العام:** [فتح TechStar ERP](https://sulaimanalsanani.github.io/techstar-erp/).
+- **آخر تقارير النشر:** [GitHub Pages Actions](https://github.com/SulaimanAlsanani/techstar-erp/actions/workflows/deploy.yml).
+- **فحوص كود الموقع:** [Source Quality](https://github.com/SulaimanAlsanani/techstar-erp/actions/workflows/quality.yml).
+- **اختبار Cloudflare Worker وD1 محليًا:** [Worker Local CI](https://github.com/SulaimanAlsanani/techstar-erp/actions/workflows/worker-local.yml).
+- **مسار Cloudflare التجريبي:** [Staging Worker (تشغيل يدوي)](https://github.com/SulaimanAlsanani/techstar-erp/actions/workflows/staging-worker.yml).
+
+عند رفع تحديث إلى `main`، تتحقق GitHub Actions من مصدر الموقع ثم تنشر ملفات الواجهة العامة فقط. يتضمن الموقع ملف `deployment.json` لعرض رقم Commit المنشور والتحقق من مطابقته للمستودع.
+
+**فصل البيئات:** نجاح نشر GitHub Pages لا يعني نشر خدمة CRM أو تفعيل استقبال بيانات العملاء. خدمة Cloudflare Worker تتطلب إعداد Access وD1 وTurnstile وقبول سياسة التشغيل، ويبقى استقبال الطلبات العامة معطّلًا في Staging افتراضيًا.
+
 ## تفعيل GitHub Pages
 
 المستودع: `SulaimanAlsanani/techstar-erp`، والفرع: `main`.
