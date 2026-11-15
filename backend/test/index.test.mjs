@@ -58,6 +58,20 @@ test('health is readable but reports unconfigured readiness',async()=>{
   assert.equal(response.headers.get('cache-control'),'no-store');
 });
 
+test('health CORS readiness is available to approved website origin only',async()=>{
+  const env=configured(fakeD1());
+  const good=await worker.fetch(request('/health','GET',undefined,ORIGIN),env);
+  assert.equal(good.status,200);
+  assert.equal(good.headers.get('access-control-allow-origin'),ORIGIN);
+  assert.equal((await good.json()).ready,true);
+  const disabled={...env,LEAD_INGESTION_ENABLED:'false'};
+  const unavailable=await worker.fetch(request('/health','GET',undefined,ORIGIN),disabled);
+  assert.equal((await unavailable.json()).ready,false);
+  const hostile=await worker.fetch(request('/health','GET',undefined,'https://attacker.test'),env);
+  assert.equal(hostile.status,200);
+  assert.equal(hostile.headers.get('access-control-allow-origin'),null);
+});
+
 test('rejects malicious origins and permits exact origin only',async()=>{
   const response=await worker.fetch(request('/api/content','GET',undefined,'https://attacker.test'),configured());
   assert.equal(response.status,403);

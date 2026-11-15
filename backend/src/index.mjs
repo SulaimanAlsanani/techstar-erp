@@ -150,7 +150,7 @@ export default {
       return adminRoutes(request,env,url);
     const origin=allowedOrigin(request.headers.get("origin"),env);
     if(url.pathname==="/health"&&request.method==="GET")
-      return respond({status:"ok",ready:!!(env.LEAD_INGESTION_ENABLED==="true"&&env.DB&&env.TURNSTILE_SECRET&&env.LEAD_RATE_LIMITER?.limit)});
+      return respond({status:"ok",ready:!!(env.LEAD_INGESTION_ENABLED==="true"&&env.DB&&env.TURNSTILE_SECRET&&env.LEAD_RATE_LIMITER?.limit)},200,origin);
     if(!origin)return respond({error:"origin_not_allowed"},403);
     if(request.method==="OPTIONS")
       return new Response(null,{status:204,headers:{

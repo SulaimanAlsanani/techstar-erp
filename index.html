@@ -193,6 +193,19 @@ function initTurnstile(onReady,onUnavailable){
    document.head.appendChild(script);
  }
 }
+async function checkLeadIntakeReady(base){
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),6000);
+ try{
+   const response=await fetch(base+'/health',{
+     method:'GET',cache:'no-store',signal:controller.signal
+   });
+   if(!response.ok)return false;
+   const data=await response.json();
+   return data?.ready===true;
+ }catch{return false}
+ finally{clearTimeout(timer)}
+}
 function initContact(){
  const f=$('#quote-form');if(!f)return;
  let submissionId=null,canSend=false;
@@ -217,9 +230,17 @@ function initContact(){
  };
  if(remoteConfigured){
    sendBtn.disabled=true;
-   sendBtn.textContent='جارٍ تجهيز التحقق...';
-   status.textContent='يلزم إكمال اختبار الحماية قبل إرسال الطلب الإلكتروني.';
-   initTurnstile(ready,unavailable);
+   sendBtn.textContent='جارٍ فحص جاهزية الاستقبال...';
+   status.textContent='نتحقق من جاهزية استقبال الطلبات قبل تفعيل الإرسال الإلكتروني.';
+   checkLeadIntakeReady(apiBase()).then(serviceReady=>{
+     if(!document.contains(f))return;
+     if(serviceReady){
+       status.textContent='الخدمة جاهزة. أكمل اختبار الحماية قبل الإرسال.';
+       initTurnstile(ready,unavailable);
+     }else{
+       unavailable('الاستقبال الإلكتروني غير متاح حاليًا. جهّز ملخص الطلب وشاركه عبر قناة التواصل الرسمية.');
+     }
+   });
  }else{
    unavailable(apiBase()?
      'إرسال الطلب غير مفعّل: إعداد اختبار الحماية غير مكتمل. يمكنك تجهيز ملخص محليًا.':

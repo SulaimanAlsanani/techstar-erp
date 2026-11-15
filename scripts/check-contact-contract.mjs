@@ -95,4 +95,28 @@ assert.match(createdScript.src,/challenges\.cloudflare\.com\/turnstile/);
 createdScript.onerror();
 assert.match(failMessage,/تعذر تحميل اختبار الحماية/);
 
+
+// Test the readiness probe with synthetic health responses and blocked access.
+const healthBegin=html.indexOf('async function checkLeadIntakeReady(');
+const healthEnd=html.indexOf('function initContact(){',healthBegin);
+assert.ok(healthBegin>contactStart&&healthEnd>healthBegin);
+assert.ok(html.includes('checkLeadIntakeReady(apiBase()).then(serviceReady=>'),
+ 'Online lead form must first check the backend health gate');
+const probeSource=html.slice(healthBegin,healthEnd);
+const makeProbe=mockFetch=>new Function('fetch','AbortController','setTimeout','clearTimeout',
+ probeSource+'return checkLeadIntakeReady;')(
+ mockFetch,AbortController,setTimeout,clearTimeout
+);
+const successful=makeProbe(async (url,options)=>{
+ assert.equal(url,'https://secure.example.test/health');
+ assert.equal(options.method,'GET');
+ assert.equal(options.cache,'no-store');
+ return {ok:true,async json(){return {status:'ok',ready:true}}};
+});
+assert.equal(await successful('https://secure.example.test'),true);
+const stopped=makeProbe(async()=>({ok:true,async json(){return {status:'ok',ready:false}}}));
+assert.equal(await stopped('https://secure.example.test'),false);
+const unavailable=makeProbe(async()=>{throw Error('backend unreachable')});
+assert.equal(await unavailable('https://secure.example.test'),false);
+
 console.log('TechStar quote contract checks passed: fields, Turnstile gate, server receipt, HTTPS URLs.');
