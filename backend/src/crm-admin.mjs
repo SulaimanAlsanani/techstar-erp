@@ -146,6 +146,47 @@ async function exportHistory(db,actor){
     filters:JSON.parse(r.filter_summary),createdAt:r.created_at
   }))});
 }
+async function leadNotes(id,db){
+  if(badPath(id))return fail("invalid_id",422);
+  const lead=await db.prepare("SELECT id FROM leads WHERE id = ?").bind(id).first();
+  if(!lead)return fail("lead_not_found",404);
+  const rows=await db.prepare(
+    "SELECT id,actor_email,body,created_at FROM lead_notes "+
+    "WHERE lead_id = ? ORDER BY created_at DESC,id DESC LIMIT 100"
+  ).bind(id).all();
+  return json({notes:(rows.results||[]).map(r=>({
+    id:r.id,actor:r.actor_email,text:r.body,createdAt:r.created_at
+  }))});
+}
+async function addLeadNote(request,url,id,db,actor){
+  if(actor.role!=="admin")return fail("permission_denied",403);
+  if(badPath(id))return fail("invalid_id",422);
+  const origin=request.headers.get("origin");
+  if(origin&&origin!==url.origin)return fail("origin_not_allowed",403);
+  if(request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")
+    return fail("invalid_content_type",415);
+  const len=Number(request.headers.get("content-length"));
+  if(Number.isFinite(len)&&len>3500)return fail("body_too_large",413);
+  let body;
+  try{
+    const raw=await request.text();
+    if(new TextEncoder().encode(raw).length>3500)return fail("body_too_large",413);
+    body=JSON.parse(raw);
+  }catch{return fail("invalid_json",400)}
+  if(!body||typeof body!=="object"||Array.isArray(body)||
+     typeof body.text!=="string")return fail("invalid_fields",422);
+  const content=body.text.trim();
+  if(content.length<1||content.length>1500)return fail("invalid_fields",422);
+  const lead=await db.prepare("SELECT id FROM leads WHERE id = ?").bind(id).first();
+  if(!lead)return fail("lead_not_found",404);
+  const noteId=crypto.randomUUID();
+  const r=await db.prepare(
+    "INSERT INTO lead_notes (id,lead_id,actor_email,body) VALUES (?,?,?,?)"
+  ).bind(noteId,id,actor.email,content).run();
+  if(r?.meta?.changes!==1)return fail("storage_unavailable",503);
+  return json({created:true,id:noteId},201);
+}
+
 async function leadDetail(id,db){
   if(badPath(id))return fail("invalid_id",422);
   const row=await db.prepare("SELECT * FROM leads WHERE id = ?").bind(id).first();
@@ -316,6 +357,10 @@ export async function handleAdminAPI(request,env,url){
     if(path==="/admin/api/leads"&&request.method==="GET")return listLeads(url,env.DB,auth);
     if(path==="/admin/api/leads/export.csv"&&request.method==="GET")return exportLeads(request,url,env,auth);
     if(path==="/admin/api/exports"&&request.method==="GET")return exportHistory(env.DB,auth);
+    if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="notes"){
+      if(request.method==="GET")return leadNotes(segments[3],env.DB);
+      if(request.method==="POST")return addLeadNote(request,url,segments[3],env.DB,auth);
+    }
     if(segments.length===4&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"){
       if(request.method==="GET")return leadDetail(segments[3],env.DB);
       if(request.method==="PATCH")return changeStatus(request,url,segments[3],env,auth);
