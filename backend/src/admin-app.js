@@ -123,23 +123,62 @@
      message('تم تحديث قائمة الطلبات.');
    }catch(e){if(ticket===sequence)message(error(e),true)}
  }
+ function renderNotes(notes){
+   const list=$('note-list');list.replaceChildren();
+   for(const entry of notes||[]){
+     const item=node('li');
+     item.append(node('strong',entry.actor+' · '+fmt(entry.createdAt)));
+     item.append(node('p',entry.text,'note-text'));
+     list.append(item);
+   }
+   if(!notes?.length)list.append(node('li','لا توجد ملاحظات متابعة بعد.'));
+ }
+ async function saveNote(event){
+   event.preventDefault();
+   if(!current||role!=='admin')return;
+   const text=$('note-text').value.trim();
+   if(!text||text.length>1500){
+     $('detail-message').textContent='أدخل ملاحظة من 1 إلى 1500 حرف';return;
+   }
+   const targetId=current.id,button=$('save-note');
+   button.disabled=true;
+   $('detail-message').textContent='جارٍ حفظ الملاحظة...';
+   try{
+     await api('/leads/'+encodeURIComponent(targetId)+'/notes',{
+       method:'POST',headers:{'content-type':'application/json'},
+       body:JSON.stringify({text})
+     });
+     $('note-text').value='';
+     const updated=await api('/leads/'+encodeURIComponent(targetId)+'/notes');
+     if($('detail').open&&current?.id===targetId){
+       renderNotes(updated.notes);
+       $('detail-message').textContent='تم حفظ الملاحظة في سجل الطلب.';
+     }
+   }catch(e){$('detail-message').textContent=error(e)}
+   finally{button.disabled=false}
+ }
  async function openLead(id){
    current=null;
    $('details').replaceChildren();
    $('audit').replaceChildren();
    $('followup-audit').replaceChildren();
+   $('note-list').replaceChildren();
+   $('note-text').value='';
    $('detail-message').textContent='جارٍ تحميل التفاصيل...';
    $('status-section').classList.toggle('hidden',role!=='admin');
    $('followup-section').classList.toggle('hidden',role!=='admin');
+   $('note-form').classList.toggle('hidden',role!=='admin');
    $('detail').showModal();
    try{
-     const [data,audit,followupAudit]=await Promise.all([
+     const [data,audit,followupAudit,notes]=await Promise.all([
        api('/leads/'+encodeURIComponent(id)),
        api('/leads/'+encodeURIComponent(id)+'/audit'),
-       api('/leads/'+encodeURIComponent(id)+'/followup-history')
+       api('/leads/'+encodeURIComponent(id)+'/followup-history'),
+       api('/leads/'+encodeURIComponent(id)+'/notes')
      ]);
      if(!$('detail').open)return;
      current=data.lead;
+     renderNotes(notes.notes);
      $('detail-title').textContent='الطلب '+current.reference;
      const dl=$('details');dl.replaceChildren();
      for(const [label,value] of [
@@ -262,6 +301,7 @@
    $('detail').addEventListener('close',()=>{current=null});
    $('status-form').addEventListener('submit',saveStatus);
    $('followup-form').addEventListener('submit',saveFollowup);
+   $('note-form').addEventListener('submit',saveNote);
    $('filters').addEventListener('submit',e=>{e.preventDefault();offset=0;loadLeads()});
    $('refresh').addEventListener('click',()=>{loadSummary().catch(()=>{});loadLeads();loadExportHistory().catch(()=>{});});
    $('export-csv').addEventListener('click',downloadCSV);
