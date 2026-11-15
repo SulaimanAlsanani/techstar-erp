@@ -26,6 +26,8 @@ jobs:
         run: node scripts/check-homepage.mjs
       - name: Test interactive routes and quote form
         run: node scripts/check-routes.mjs
+      - name: Verify quote form to Cloudflare API contract
+        run: node scripts/check-contact-contract.mjs
       - name: Test Cloudflare API contract (not deployed)
         run: |
           node --check backend/src/index.mjs
