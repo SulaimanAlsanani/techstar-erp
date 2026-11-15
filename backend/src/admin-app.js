@@ -203,6 +203,37 @@
    }catch(e){$('detail-message').textContent=error(e)}
    finally{button.disabled=false}
  }
+ async function downloadCSV(){
+   if(role!=='admin')return;
+   if(!window.confirm('تنزيل بيانات العملاء إجراء مسجّل في سجل التدقيق. هل تريد المتابعة؟'))return;
+   const button=$('export-csv');button.disabled=true;
+   message('جارٍ تجهيز ملف CSV...');
+   try{
+     const params=new URLSearchParams();
+     const status=$('status-filter').value,q=$('search').value.trim();
+     const due=$('due-filter').value,assigned=$('assigned-filter').value;
+     if(status)params.set('status',status);
+     if(q)params.set('q',q);
+     if(due)params.set('due',due);
+     if(assigned)params.set('assigned',assigned);
+     const response=await fetch('/admin/api/leads/export.csv?'+params.toString(),{
+       credentials:'same-origin',cache:'no-store',headers:{'accept':'text/csv'}
+     });
+     if(!response.ok){
+       if(response.status===413)throw Error('تجاوزت النتائج حد 500 طلب؛ استخدم المرشحات لتقليلها.');
+       if(response.status===403)throw Error('لا تملك صلاحية تصدير بيانات العملاء.');
+       throw Error('تعذر تصدير البيانات ('+response.status+').');
+     }
+     const blob=await response.blob();
+     const url=URL.createObjectURL(blob);
+     const link=document.createElement('a');
+     link.href=url;link.download='techstar-crm-leads.csv';
+     document.body.append(link);link.click();link.remove();
+     setTimeout(()=>URL.revokeObjectURL(url),1000);
+     message('تم إعداد ملف CSV وتسجيل عملية التصدير.');
+   }catch(e){message(error(e),true)}
+   finally{button.disabled=false}
+ }
  async function init(){
    $('close-detail').addEventListener('click',()=>$('detail').close());
    $('detail').addEventListener('close',()=>{current=null});
@@ -210,11 +241,13 @@
    $('followup-form').addEventListener('submit',saveFollowup);
    $('filters').addEventListener('submit',e=>{e.preventDefault();offset=0;loadLeads()});
    $('refresh').addEventListener('click',()=>{loadSummary().catch(()=>{});loadLeads()});
+   $('export-csv').addEventListener('click',downloadCSV);
    $('prev').addEventListener('click',()=>{offset=Math.max(0,offset-limit);loadLeads()});
    $('next').addEventListener('click',()=>{offset+=limit;loadLeads()});
    try{
      const me=await api('/me');
      role=me.role;
+     $('export-csv').classList.toggle('hidden',role!=='admin');
      $('identity').textContent=me.email+' · '+(role==='admin'?'مدير':'قراءة فقط');
      await Promise.all([loadSummary(),loadLeads()]);
    }catch(e){
