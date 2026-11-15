@@ -55,6 +55,11 @@ jobs:
       - name: Apply all D1 migrations to local test storage
         run: |
           npx --no-install wrangler d1 migrations apply techstar-leads-staging --local --config .wrangler-staging.toml --persist-to .wrangler/state
+      - name: Build production-format Worker bundle without publishing
+        run: |
+          npx --no-install wrangler deploy --dry-run --config .wrangler-staging.toml --outdir .wrangler/bundle-check
+          test -d .wrangler/bundle-check
+          find .wrangler/bundle-check -maxdepth 2 -type f | head -15
       - name: Smoke test live local Worker HTTP endpoints
         run: node scripts/smoke-local-worker.mjs
       - name: Verify public site was not modified
