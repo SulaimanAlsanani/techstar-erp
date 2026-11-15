@@ -42,6 +42,7 @@ def setup_connection(preexisting=True):
     db.executescript((MIGRATIONS / "0002_crm_audit.sql").read_text(encoding="utf-8"))
     db.executescript((MIGRATIONS / "0003_crm_followup.sql").read_text(encoding="utf-8"))
     db.executescript((MIGRATIONS / "0004_crm_exports.sql").read_text(encoding="utf-8"))
+    db.executescript((MIGRATIONS / "0005_crm_notes.sql").read_text(encoding="utf-8"))
     return db
 
 
@@ -236,6 +237,32 @@ class MigrationTests(unittest.TestCase):
                 "INSERT INTO crm_export_audit "
                 "(id,actor_email,record_count,filter_summary) VALUES (?,?,?,?)",
                 ("export-2", "admin@example.test", 501, "{}")
+            )
+
+    def test_lead_notes_are_append_only(self):
+        with self.db:
+            self.db.execute(
+                "INSERT INTO lead_notes (id,lead_id,actor_email,body) VALUES (?,?,?,?)",
+                ("note-1", "lead-1", "manager@example.test", "اتصال بالعميل")
+            )
+        note = self.db.execute("SELECT body FROM lead_notes WHERE id='note-1'").fetchone()
+        self.assertEqual(note["body"], "اتصال بالعميل")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE lead_notes SET body='modified' WHERE id='note-1'")
+        with self.db:
+            self.db.execute("DELETE FROM leads WHERE id='lead-1'")
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM lead_notes").fetchone()[0], 0)
+
+    def test_lead_note_length_is_enforced(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "INSERT INTO lead_notes (id,lead_id,actor_email,body) VALUES (?,?,?,?)",
+                ("note-2", "lead-1", "admin@example.test", " ")
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "INSERT INTO lead_notes (id,lead_id,actor_email,body) VALUES (?,?,?,?)",
+                ("note-3", "lead-1", "admin@example.test", "a" * 1501)
             )
 
     def test_invalid_branch_count_rejected(self):
