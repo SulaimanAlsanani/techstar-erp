@@ -204,6 +204,23 @@ async function auditLog(id,db){
     to:row.new_status,createdAt:row.created_at
   }))});
 }
+function systemStatus(env,actor){
+  if(actor.role!=="admin")return fail("permission_denied",403);
+  const d1=typeof env.DB?.prepare==="function";
+  const turnstile=typeof env.TURNSTILE_SECRET==="string"&&env.TURNSTILE_SECRET.length>0;
+  const limiter=typeof env.LEAD_RATE_LIMITER?.limit==="function";
+  const ingestion=env.LEAD_INGESTION_ENABLED==="true";
+  const days=Number(env.CRM_RETENTION_DAYS);
+  const retention=env.CRM_RETENTION_ENABLED==="true"&&Number.isInteger(days)&&
+    days>=30&&days<=3650;
+  return json({
+    checks:{accessAuthenticated:true,d1Binding:d1,turnstileSecretPresent:turnstile,
+      rateLimitBinding:limiter,leadIngestionEnabled:ingestion,
+      retentionPolicyEnabled:retention},
+    leadIntakeConfigured:d1&&turnstile&&limiter&&ingestion,
+    note:"These are binding/configuration checks only; remote service health and privacy approvals require separate verification."
+  });
+}
 async function summary(db){
   const rows=await db.prepare(
     "SELECT status,COUNT(*) AS total FROM leads GROUP BY status"
@@ -348,11 +365,13 @@ async function changeFollowUp(request,url,id,env,actor){
 export async function handleAdminAPI(request,env,url){
   const auth=await authenticateAdmin(request,env);
   if(!auth.ok)return fail(auth.error,auth.status);
-  if(!env.DB)return fail("admin_not_configured",503);
   const path=url.pathname;
+  if(path==="/admin/api/me"&&request.method==="GET")return json({email:auth.email,role:auth.role});
+  if(path==="/admin/api/system"&&request.method==="GET")return systemStatus(env,auth);
+  if(!env.DB)return fail("admin_not_configured",503);
   const segments=path.split("/").filter(Boolean);
   try{
-    if(path==="/admin/api/me"&&request.method==="GET")return json({email:auth.email,role:auth.role});
+
     if(path==="/admin/api/summary"&&request.method==="GET")return summary(env.DB);
     if(path==="/admin/api/leads"&&request.method==="GET")return listLeads(url,env.DB,auth);
     if(path==="/admin/api/leads/export.csv"&&request.method==="GET")return exportLeads(request,url,env,auth);
