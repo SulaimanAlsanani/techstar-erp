@@ -52,4 +52,48 @@ assert.equal(compute('javascript:alert(1)'),'','Unsafe scheme must be rejected')
 assert.equal(compute('https://user:pass@api.example.test'),'', 'Credential-bearing URLs must be rejected');
 assert.equal(compute('https://api.example.test/path?token=secret'),'', 'Query-bearing API base URLs must be rejected');
 
+
+// Exercise the challenge callbacks with a simulated browser and no network.
+const turnstileStart=html.indexOf('function turnstileKey(){',apiEnd);
+const contactStart=html.indexOf('function initContact(){',turnstileStart);
+assert.ok(turnstileStart>apiEnd && contactStart>turnstileStart);
+const js=html.slice(apiStart,contactStart);
+const slot={nodeType:1};
+let challengeOptions,rendered=0,enabled=0,disabled=[];
+const browser={
+ TECHSTAR_CONFIG:{apiBaseUrl:'https://secure.example.test',turnstileSiteKey:'public-test-key'},
+ turnstile:{
+   render(element,options){assert.equal(element,slot);challengeOptions=options;rendered++;return 4}
+ }
+};
+const fakeDoc={contains:element=>element===slot,head:{appendChild(){}}};
+const makeChallenge=new Function('window','document',' fields, Turnstile gate, server receipt, HTTPS URLs.');
+,'URL',
+ js+'return {initTurnstile,apiBase,turnstileKey};');
+const challenge=makeChallenge(browser,fakeDoc,selector=>selector==='#turnstile-slot'?slot:null,URL);
+challenge.initTurnstile(()=>enabled++,message=>disabled.push(message));
+assert.equal(rendered,1);
+challengeOptions.callback('challenge-response');
+assert.equal(enabled,1,'Only a solved challenge enables remote send');
+challengeOptions.callback('');
+assert.equal(enabled,1,'Empty response must not enable send');
+challengeOptions['expired-callback']();
+assert.equal(disabled.length,1,'Expired challenges must close remote send');
+challengeOptions['error-callback']();
+assert.equal(disabled.length,2,'Failed challenges must close remote send');
+assert.equal(challengeOptions.sitekey,'public-test-key');
+let createdScript;
+const unavailableBrowser={TECHSTAR_CONFIG:browser.TECHSTAR_CONFIG};
+const docWithoutScript={
+ contains:fakeDoc.contains,
+ createElement(tag){assert.equal(tag,'script');createdScript={};return createdScript},
+ head:{appendChild(script){assert.equal(script,createdScript)}}
+};
+let failMessage='';
+makeChallenge(unavailableBrowser,docWithoutScript,()=>slot,URL)
+ .initTurnstile(()=>{throw Error('Unavailable widget must not report ready')},value=>{failMessage=value});
+assert.match(createdScript.src,/challenges\.cloudflare\.com\/turnstile/);
+createdScript.onerror();
+assert.match(failMessage,/تعذر تحميل اختبار الحماية/);
+
 console.log('TechStar quote contract checks passed: fields, Turnstile gate, server receipt, HTTPS URLs.');
