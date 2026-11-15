@@ -43,6 +43,7 @@ def setup_connection(preexisting=True):
     db.executescript((MIGRATIONS / "0003_crm_followup.sql").read_text(encoding="utf-8"))
     db.executescript((MIGRATIONS / "0004_crm_exports.sql").read_text(encoding="utf-8"))
     db.executescript((MIGRATIONS / "0005_crm_notes.sql").read_text(encoding="utf-8"))
+    db.executescript((MIGRATIONS / "0006_followup_completions.sql").read_text(encoding="utf-8"))
     return db
 
 
@@ -264,6 +265,54 @@ class MigrationTests(unittest.TestCase):
                 "INSERT INTO lead_notes (id,lead_id,actor_email,body) VALUES (?,?,?,?)",
                 ("note-3", "lead-1", "admin@example.test", "a" * 1501)
             )
+
+    def test_followup_completion_clears_due_and_preserves_history(self):
+        due = "2026-11-20T11:00:00.000Z"
+        self.db.execute("UPDATE leads SET follow_up_at=? WHERE id='lead-1'", (due,))
+        with self.db:
+            update = self.db.execute(
+                "UPDATE leads SET follow_up_at = '', revision = revision + 1, "
+                "updated_at = datetime('now') WHERE id = ? AND revision = ? AND "
+                "follow_up_at = ? AND status NOT IN ('won','lost','archived')",
+                ("lead-1", 0, due)
+            )
+            audit = self.db.execute(
+                "INSERT INTO lead_followup_completions (id,lead_id,actor_email,due_at) "
+                "SELECT ?,id,?,? FROM leads WHERE id = ? AND revision = ? AND changes() = 1",
+                ("done-1", "admin@example.test", due, "lead-1", 1)
+            )
+        self.assertEqual(update.rowcount, 1)
+        self.assertEqual(audit.rowcount, 1)
+        row = self.db.execute("SELECT follow_up_at,revision FROM leads WHERE id='lead-1'").fetchone()
+        self.assertEqual(row["follow_up_at"], "")
+        self.assertEqual(row["revision"], 1)
+        log = self.db.execute("SELECT due_at,actor_email,completed_at FROM lead_followup_completions").fetchone()
+        self.assertEqual(log["due_at"], due)
+        self.assertEqual(log["actor_email"], "admin@example.test")
+        self.assertTrue(log["completed_at"])
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE lead_followup_completions SET due_at='changed' WHERE id='done-1'")
+        with self.db:
+            self.db.execute("DELETE FROM leads WHERE id='lead-1'")
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM lead_followup_completions").fetchone()[0], 0)
+
+    def test_stale_completion_does_not_log_fake_success(self):
+        due = "2026-11-20T11:00:00.000Z"
+        self.db.execute("UPDATE leads SET follow_up_at=?, revision=2 WHERE id='lead-1'", (due,))
+        with self.db:
+            update = self.db.execute(
+                "UPDATE leads SET follow_up_at = '', revision = revision + 1, "
+                "updated_at = datetime('now') WHERE id = ? AND revision = ? AND "
+                "follow_up_at = ? AND status NOT IN ('won','lost','archived')",
+                ("lead-1", 1, due)
+            )
+            audit = self.db.execute(
+                "INSERT INTO lead_followup_completions (id,lead_id,actor_email,due_at) "
+                "SELECT ?,id,?,? FROM leads WHERE id = ? AND revision = ? AND changes() = 1",
+                ("done-stale", "admin@example.test", due, "lead-1", 2)
+            )
+        self.assertEqual((update.rowcount, audit.rowcount), (0, 0))
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM lead_followup_completions").fetchone()[0], 0)
 
     def test_invalid_branch_count_rejected(self):
         with self.assertRaises(sqlite3.IntegrityError):
