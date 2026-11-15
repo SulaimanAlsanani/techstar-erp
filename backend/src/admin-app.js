@@ -63,6 +63,25 @@
      wrap.append(card);
    }
  }
+ async function loadSystemStatus(){
+   if(role!=='admin')return;
+   const result=await api('/system');
+   const wrap=$('readiness-checks');wrap.replaceChildren();
+   const labels={
+     accessAuthenticated:'Cloudflare Access (الجلسة الحالية)',
+     d1Binding:'ربط قاعدة D1',
+     turnstileSecretPresent:'إعداد Turnstile',
+     rateLimitBinding:'حد الطلبات',
+     leadIngestionEnabled:'استقبال الطلبات العامة',
+     retentionPolicyEnabled:'سياسة الاحتفاظ'
+   };
+   for(const [key,label] of Object.entries(labels)){
+     const card=node('div',undefined,'stat');
+     card.append(node('strong',result.checks?.[key]?'مهيأ':'غير مهيأ'));
+     card.append(node('span',label));
+     wrap.append(card);
+   }
+ }
  async function loadExportHistory(){
    if(role!=='admin')return;
    const result=await api('/exports');
@@ -303,7 +322,7 @@
    $('followup-form').addEventListener('submit',saveFollowup);
    $('note-form').addEventListener('submit',saveNote);
    $('filters').addEventListener('submit',e=>{e.preventDefault();offset=0;loadLeads()});
-   $('refresh').addEventListener('click',()=>{loadSummary().catch(()=>{});loadLeads();loadExportHistory().catch(()=>{});});
+   $('refresh').addEventListener('click',()=>{loadSummary().catch(()=>{});loadLeads();loadExportHistory().catch(()=>{});loadSystemStatus().catch(()=>{});});
    $('export-csv').addEventListener('click',downloadCSV);
    $('prev').addEventListener('click',()=>{offset=Math.max(0,offset-limit);loadLeads()});
    $('next').addEventListener('click',()=>{offset+=limit;loadLeads()});
@@ -312,8 +331,9 @@
      role=me.role;
      $('export-csv').classList.toggle('hidden',role!=='admin');
      $('export-audit-panel').classList.toggle('hidden',role!=='admin');
+     $('readiness-panel').classList.toggle('hidden',role!=='admin');
      $('identity').textContent=me.email+' · '+(role==='admin'?'مدير':'قراءة فقط');
-     await Promise.all([loadSummary(),loadLeads(),loadExportHistory()]);
+     await Promise.allSettled([loadSummary(),loadLeads(),loadExportHistory(),loadSystemStatus()]);
    }catch(e){
      $('identity').textContent='غير متصل';
      message(error(e),true);
