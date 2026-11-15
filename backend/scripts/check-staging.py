@@ -76,7 +76,8 @@ def validate(config: dict) -> tuple[list[str], list[str]]:
         problems.append("Confidential/runtime Access settings must not be committed as public vars")
     if config.get("triggers", {}).get("crons"):
         blockers.append("Cron triggers require approved retention policy and separate review")
-    for path in ("0001_leads.sql", "0002_crm_audit.sql", "0003_crm_followup.sql"):
+    for path in ("0001_leads.sql", "0002_crm_audit.sql", "0003_crm_followup.sql",
+                 "0004_crm_exports.sql", "0005_crm_notes.sql"):
         if not (ROOT / "migrations" / path).is_file():
             problems.append(f"Required migration is missing: {path}")
     return problems, blockers
