@@ -43,7 +43,7 @@ function buildLeadFilter(url,actor){
   const q=(url.searchParams.get("q")||"").trim();
   const due=url.searchParams.get("due")||"";
   const assigned=url.searchParams.get("assigned")||"";
-  if((due&&!["overdue","scheduled","unscheduled"].includes(due))||
+  if((due&&!["overdue","upcoming7","scheduled","unscheduled"].includes(due))||
      (assigned&&!["mine","unassigned"].includes(assigned))||
      (status&&!STATUSES.includes(status))||q.length>80)
     return null;
@@ -56,6 +56,11 @@ function buildLeadFilter(url,actor){
   if(due==="unscheduled")where.push("follow_up_at = ''");
   if(due==="overdue")where.push(
     "follow_up_at <> '' AND follow_up_at < strftime('%Y-%m-%dT%H:%M:%fZ','now') "+
+    "AND status NOT IN ('won','lost','archived')"
+  );
+  if(due==="upcoming7")where.push(
+    "follow_up_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now') "+
+    "AND follow_up_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','+7 days') "+
     "AND status NOT IN ('won','lost','archived')"
   );
   if(q){
