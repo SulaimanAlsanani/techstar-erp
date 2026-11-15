@@ -55,6 +55,24 @@ python scripts/check-staging.py --require-ready
 
 الاختبارات تتحقق من توقيع Access JWT الحقيقي باستخدام مفتاح RSA للاختبار، والصلاحيات، والتصدي لتزوير الهوية، وتغييرات الحالات وتضاربها، وواجهات الطلبات العامة، وعمليات SQLite الفعلية وقيودها وتدقيق التغييرات، وسياسة الحذف الاختيارية.
 
+### اختبار Cloudflare Worker محليًا مع D1 الحقيقي
+
+أضيف مسار CI مستقل باسم [**Validate Cloudflare Worker locally**](../.github/workflows/worker-local.yml)، ويعمل تلقائيًا على تغييرات `backend/**` دون الوصول إلى حساب Cloudflare ودون نشر Worker. يجري اختبار كود الـAPI، ثم ينشئ إعداد Staging محليًا بمعرّفات اختبار، ويطبّق كل ملفات D1 Migrations محليًا، ويشغّل خادم Wrangler، ثم يفحص HTTP وCORS وقفل الإدارة ومنع استقبال بيانات العملاء.
+
+لإعادة الاختبار على جهاز تطوير يستخدم Node.js 22+ وPython 3:
+
+```bash
+cd backend
+npm install --no-audit --no-fund
+export TECHSTAR_STAGING_D1_ID="00000000-0000-0000-0000-000000000001"
+export TECHSTAR_STAGING_RATE_NAMESPACE="321890"
+python scripts/prepare-staging.py
+npx wrangler d1 migrations apply techstar-leads-staging --local --config .wrangler-staging.toml --persist-to .wrangler/state
+node scripts/smoke-local-worker.mjs
+```
+
+الاختبار يستخدم قيمًا وهمية صراحةً، ويؤكد أن `LEAD_INGESTION_ENABLED=false` قبل تشغيل الـWorker. لا يختبر الاتصال الفعلي بخدمات Cloudflare البعيدة ولا يفعّل استقبال بيانات العملاء. ينبغي عدم تشغيل اختبار الدخان بأي أسرار إنتاجية.
+
 ## نشر مستقل إلى Cloudflare Staging (تشغيل يدوي فقط)
 
 أضيف مسار GitHub Actions باسم [**TechStar Cloudflare staging (manual only)**](../.github/workflows/staging-worker.yml)؛ لا يعمل عند push أو دمج التعديلات، بل فقط عبر `Run workflow` وبعد إعداد حساب Cloudflare.
