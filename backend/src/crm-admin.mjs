@@ -83,6 +83,58 @@ async function listLeads(url,db,actor){
   return json({items:(list.results||[]).map(x=>formatLead(x)),total:Number(count?.total||0),limit,offset});
 }
 
+const EXPORT_COLUMNS = [
+  ["reference","المرجع"],["business","المنشأة"],["name","المسؤول"],
+  ["email","البريد الإلكتروني"],["phone","الجوال"],
+  ["industry","النشاط"],["package_id","الباقة"],["solution_id","الحل"],
+  ["status","الحالة"],["assigned_to","الموظف المكلّف"],
+  ["follow_up_at","موعد المتابعة"],["branches","الفروع"],
+  ["pos_count","نقاط البيع"],["notes","المتطلبات"],["created_at","تاريخ الإنشاء"]
+];
+function safeCSVCell(value){
+  const normalized=String(value==null?"":value).replace(/[\r\n\t\x00-\x1f\x7f]/g," ");
+  const risky=/^[\s\uFEFF\u200B\u200C\u200D]*[=+\-@]/.test(normalized);
+  const safe=(risky?"'":"")+normalized;
+  return '"'+safe.replace(/"/g,'""')+'"';
+}
+async function exportLeads(request,url,env,actor){
+  if(actor.role!=="admin")return fail("permission_denied",403);
+  const filter=buildLeadFilter(url,actor);
+  if(!filter)return fail("invalid_filters",422);
+  const sql="SELECT "+EXPORT_COLUMNS.map(([column])=>column).join(",")+
+    " FROM leads"+filter.sqlWhere+
+    " ORDER BY created_at DESC,id DESC LIMIT 501";
+  const found=await env.DB.prepare(sql).bind(...filter.binds).all();
+  const records=found.results||[];
+  if(records.length>500)return fail("export_limit_exceeded",413);
+  // Keep the audit record without storing the search text itself.
+  const choices={
+    status:url.searchParams.get("status")||"",
+    due:url.searchParams.get("due")||"",
+    assigned:url.searchParams.get("assigned")||"",
+    searched:Boolean((url.searchParams.get("q")||"").trim())
+  };
+  const logged=await env.DB.prepare(
+    "INSERT INTO crm_export_audit (id,actor_email,record_count,filter_summary) VALUES (?,?,?,?)"
+  ).bind(crypto.randomUUID(),actor.email,records.length,JSON.stringify(choices)).run();
+  if(logged?.meta?.changes!==1)return fail("audit_unavailable",503);
+  const lines=[
+    EXPORT_COLUMNS.map(([key,title])=>safeCSVCell(title)).join(","),
+    ...records.map(row=>EXPORT_COLUMNS.map(([key])=>safeCSVCell(row[key])).join(","))
+  ];
+  return new Response("\uFEFF"+lines.join("\r\n")+"\r\n",{
+    status:200,headers:{
+      "content-type":"text/csv; charset=utf-8",
+      "content-disposition":'attachment; filename="techstar-crm-leads.csv"',
+      "cache-control":"no-store, private",
+      "x-content-type-options":"nosniff",
+      "referrer-policy":"no-referrer",
+      "x-frame-options":"DENY",
+      "vary":"CF-Access-Jwt-Assertion"
+    }
+  });
+}
+
 async function leadDetail(id,db){
   if(badPath(id))return fail("invalid_id",422);
   const row=await db.prepare("SELECT * FROM leads WHERE id = ?").bind(id).first();
@@ -251,6 +303,7 @@ export async function handleAdminAPI(request,env,url){
     if(path==="/admin/api/me"&&request.method==="GET")return json({email:auth.email,role:auth.role});
     if(path==="/admin/api/summary"&&request.method==="GET")return summary(env.DB);
     if(path==="/admin/api/leads"&&request.method==="GET")return listLeads(url,env.DB,auth);
+    if(path==="/admin/api/leads/export.csv"&&request.method==="GET")return exportLeads(request,url,env,auth);
     if(segments.length===4&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"){
       if(request.method==="GET")return leadDetail(segments[3],env.DB);
       if(request.method==="PATCH")return changeStatus(request,url,segments[3],env,auth);
