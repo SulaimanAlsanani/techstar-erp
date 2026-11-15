@@ -676,3 +676,42 @@ test("CRM UI exposes follow-up completion and accessible metric navigation",()=>
  assert.match(adminApp,/scrollIntoView/);
  assert.match(adminApp,/complete-followup/);
 });
+
+test("unified CRM timeline merges activity types and respects signed Access roles",async()=>{
+ const token=await sign(VIEWER);
+ const seen=[];
+ const data=[
+   {id:"s1",kind:"status",actor_email:ADMIN,created_at:"2026-11-15 09:00:00",
+     detail:JSON.stringify({from:"new",to:"in_progress"})},
+   {id:"a1",kind:"assignment",actor_email:ADMIN,created_at:"2026-11-15 10:00:00",
+     detail:JSON.stringify({fromAssignee:"",toAssignee:VIEWER,fromDue:"",toDue:"2026-12-01T12:00:00.000Z"})},
+   {id:"c1",kind:"completion",actor_email:ADMIN,created_at:"2026-11-15 11:00:00",
+     detail:JSON.stringify({dueAt:"2026-12-01T12:00:00.000Z"})},
+   {id:"n1",kind:"note",actor_email:ADMIN,created_at:"2026-11-15 12:00:00",
+     detail:JSON.stringify({text:"ملاحظة <script>malicious</script>"})}
+ ];
+ const db={prepare(sql){
+   seen.push(sql);let args=[];
+   return {
+     bind(...values){args=values;return this},
+     async first(){return args[0]===LEAD_ID?{id:LEAD_ID}:null},
+     async all(){assert.deepEqual(args,[LEAD_ID,LEAD_ID,LEAD_ID,LEAD_ID]);return {results:data}}
+   };
+ }};
+ const response=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/timeline","GET",token),env(db));
+ assert.equal(response.status,200);
+ const payload=await response.json();
+ assert.deepEqual(payload.events.map(x=>x.kind),["status","assignment","completion","note"]);
+ assert.equal(payload.events[3].details.text,"ملاحظة <script>malicious</script>");
+ assert.ok(seen[1].includes("UNION ALL") && seen[1].includes("LIMIT 150"));
+ const unauthenticated=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/timeline","GET"),env(db));
+ assert.equal(unauthenticated.status,401);
+ const invalid=await worker.fetch(request("/admin/api/leads/not-a-uuid/timeline","GET",token),env(db));
+ assert.equal(invalid.status,422);
+});
+test("CRM activity UI renders untrusted text through DOM textContent",()=>{
+ assert.match(adminPage,/id="activity-timeline"/);
+ assert.match(adminApp,/function renderTimeline/);
+ assert.match(adminApp,/event.kind==='completion'/);
+ assert.match(adminApp,/node\\('p',desc,'note-text'\\)/);
+});

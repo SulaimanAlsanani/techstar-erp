@@ -314,6 +314,28 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual((update.rowcount, audit.rowcount), (0, 0))
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM lead_followup_completions").fetchone()[0], 0)
 
+    def test_unified_timeline_sqlite_activity(self):
+        due = "2026-12-02T09:00:00.000Z"
+        self.db.execute("INSERT INTO lead_audit (id,lead_id,actor_email,action,previous_status,new_status) VALUES (?,?,?,?,?,?)",
+            ("event-status", "lead-1", "admin@example.test", "status_changed", "new", "in_progress"))
+        self.db.execute("INSERT INTO lead_followup_audit (id,lead_id,actor_email,previous_assignee,new_assignee,previous_due,new_due) VALUES (?,?,?,?,?,?,?)",
+            ("event-assignment", "lead-1", "admin@example.test", "", "viewer@example.test", "", due))
+        self.db.execute("INSERT INTO lead_followup_completions (id,lead_id,actor_email,due_at) VALUES (?,?,?,?)",
+            ("event-completion", "lead-1", "admin@example.test", due))
+        self.db.execute("INSERT INTO lead_notes (id,lead_id,actor_email,body) VALUES (?,?,?,?)",
+            ("event-note", "lead-1", "admin@example.test", "ملاحظة داخلية"))
+        query = "SELECT id,'status' AS kind,actor_email,created_at,\n  json_object('from',previous_status,'to',new_status) AS detail FROM lead_audit WHERE lead_id = ?\nUNION ALL\nSELECT id,'assignment',actor_email,created_at,\n  json_object('fromAssignee',previous_assignee,'toAssignee',new_assignee,'fromDue',previous_due,'toDue',new_due)\n  FROM lead_followup_audit WHERE lead_id = ?\nUNION ALL\nSELECT id,'completion',actor_email,completed_at AS created_at,\n  json_object('dueAt',due_at) FROM lead_followup_completions WHERE lead_id = ?\nUNION ALL\nSELECT id,'note',actor_email,created_at,\n  json_object('text',body) FROM lead_notes WHERE lead_id = ?\nORDER BY created_at DESC,id DESC LIMIT 150"
+        import json
+        rows = self.db.execute(query, ("lead-1",) * 4).fetchall()
+        self.assertEqual({row["kind"] for row in rows},
+            {"status", "assignment", "completion", "note"})
+        self.assertEqual(len(rows), 4)
+        parsed = {r["kind"]:json.loads(r["detail"]) for r in rows}
+        self.assertEqual(parsed["status"]["from"], "new")
+        self.assertEqual(parsed["assignment"]["toAssignee"], "viewer@example.test")
+        self.assertEqual(parsed["completion"]["dueAt"], due)
+        self.assertEqual(parsed["note"]["text"], "ملاحظة داخلية")
+
     def test_invalid_branch_count_rejected(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute(

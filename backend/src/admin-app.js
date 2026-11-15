@@ -184,12 +184,30 @@
    }catch(e){$('detail-message').textContent=error(e)}
    finally{button.disabled=false}
  }
+ function renderTimeline(events){
+   const list=$('activity-timeline');list.replaceChildren();
+   for(const event of events||[]){
+     const details=event.details||{};
+     const item=node('li');
+     const header=node('strong',event.actor+' · '+fmt(event.createdAt));
+     const desc=event.kind==='status'?
+       'تغيير الحالة: '+(statuses[details.from]||details.from)+' ← '+(statuses[details.to]||details.to):
+       event.kind==='assignment'?
+       'تغيير المتابعة: '+(details.fromAssignee||'غير معين')+' ← '+(details.toAssignee||'غير معين')+
+       '، الموعد: '+fmt(details.fromDue)+' ← '+fmt(details.toDue):
+       event.kind==='completion'?'إنجاز متابعة مقررة: '+fmt(details.dueAt):
+       event.kind==='note'?'ملاحظة متابعة: '+String(details.text||''):'حدث إداري';
+     item.append(header,node('p',desc,'note-text'));list.append(item);
+   }
+   if(!events?.length)list.append(node('li','لا يوجد نشاط مسجّل بعد.'));
+ }
  async function openLead(id){
    current=null;
    $('details').replaceChildren();
    $('audit').replaceChildren();
    $('followup-audit').replaceChildren();
    $('followup-completions').replaceChildren();
+   $('activity-timeline').replaceChildren();
    $('note-list').replaceChildren();
    $('note-text').value='';
    $('detail-message').textContent='جارٍ تحميل التفاصيل...';
@@ -198,16 +216,18 @@
    $('note-form').classList.toggle('hidden',role!=='admin');
    $('detail').showModal();
    try{
-     const [data,audit,followupAudit,notes,completions]=await Promise.all([
+     const [data,audit,followupAudit,notes,completions,timeline]=await Promise.all([
        api('/leads/'+encodeURIComponent(id)),
        api('/leads/'+encodeURIComponent(id)+'/audit'),
        api('/leads/'+encodeURIComponent(id)+'/followup-history'),
        api('/leads/'+encodeURIComponent(id)+'/notes'),
-       api('/leads/'+encodeURIComponent(id)+'/followup-completions')
+       api('/leads/'+encodeURIComponent(id)+'/followup-completions'),
+       api('/leads/'+encodeURIComponent(id)+'/timeline')
      ]);
      if(!$('detail').open)return;
      current=data.lead;
      renderNotes(notes.notes);
+     renderTimeline(timeline.events);
      $('detail-title').textContent='الطلب '+current.reference;
      const dl=$('details');dl.replaceChildren();
      for(const [label,value] of [

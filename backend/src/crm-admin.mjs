@@ -192,6 +192,17 @@ async function addLeadNote(request,url,id,db,actor){
   return json({created:true,id:noteId},201);
 }
 
+async function leadTimeline(id,db){
+  if(badPath(id))return fail("invalid_id",422);
+  const exists=await db.prepare("SELECT id FROM leads WHERE id = ?").bind(id).first();
+  if(!exists)return fail("lead_not_found",404);
+  const sql="SELECT id,'status' AS kind,actor_email,created_at,\n  json_object('from',previous_status,'to',new_status) AS detail FROM lead_audit WHERE lead_id = ?\nUNION ALL\nSELECT id,'assignment',actor_email,created_at,\n  json_object('fromAssignee',previous_assignee,'toAssignee',new_assignee,'fromDue',previous_due,'toDue',new_due)\n  FROM lead_followup_audit WHERE lead_id = ?\nUNION ALL\nSELECT id,'completion',actor_email,completed_at AS created_at,\n  json_object('dueAt',due_at) FROM lead_followup_completions WHERE lead_id = ?\nUNION ALL\nSELECT id,'note',actor_email,created_at,\n  json_object('text',body) FROM lead_notes WHERE lead_id = ?\nORDER BY created_at DESC,id DESC LIMIT 150";
+  const result=await db.prepare(sql).bind(id,id,id,id).all();
+  return json({events:(result.results||[]).map(r=>({
+    id:r.id,kind:r.kind,actor:r.actor_email,createdAt:r.created_at,
+    details:JSON.parse(r.detail)
+  }))});
+}
 async function leadDetail(id,db){
   if(badPath(id))return fail("invalid_id",422);
   const row=await db.prepare("SELECT * FROM leads WHERE id = ?").bind(id).first();
@@ -435,6 +446,9 @@ export async function handleAdminAPI(request,env,url){
     if(path==="/admin/api/leads"&&request.method==="GET")return listLeads(url,env.DB,auth);
     if(path==="/admin/api/leads/export.csv"&&request.method==="GET")return exportLeads(request,url,env,auth);
     if(path==="/admin/api/exports"&&request.method==="GET")return exportHistory(env.DB,auth);
+    if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="timeline"){
+      if(request.method==="GET")return leadTimeline(segments[3],env.DB);
+    }
     if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="notes"){
       if(request.method==="GET")return leadNotes(segments[3],env.DB);
       if(request.method==="POST")return addLeadNote(request,url,segments[3],env.DB,auth);
