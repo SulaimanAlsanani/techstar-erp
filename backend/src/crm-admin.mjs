@@ -135,6 +135,17 @@ async function exportLeads(request,url,env,actor){
   });
 }
 
+async function exportHistory(db,actor){
+  if(actor.role!=="admin")return fail("permission_denied",403);
+  const result=await db.prepare(
+    "SELECT id,actor_email,record_count,filter_summary,created_at "+
+    "FROM crm_export_audit ORDER BY created_at DESC,id DESC LIMIT 50"
+  ).all();
+  return json({events:(result.results||[]).map(r=>({
+    id:r.id,actor:r.actor_email,count:Number(r.record_count)||0,
+    filters:JSON.parse(r.filter_summary),createdAt:r.created_at
+  }))});
+}
 async function leadDetail(id,db){
   if(badPath(id))return fail("invalid_id",422);
   const row=await db.prepare("SELECT * FROM leads WHERE id = ?").bind(id).first();
@@ -304,6 +315,7 @@ export async function handleAdminAPI(request,env,url){
     if(path==="/admin/api/summary"&&request.method==="GET")return summary(env.DB);
     if(path==="/admin/api/leads"&&request.method==="GET")return listLeads(url,env.DB,auth);
     if(path==="/admin/api/leads/export.csv"&&request.method==="GET")return exportLeads(request,url,env,auth);
+    if(path==="/admin/api/exports"&&request.method==="GET")return exportHistory(env.DB,auth);
     if(segments.length===4&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"){
       if(request.method==="GET")return leadDetail(segments[3],env.DB);
       if(request.method==="PATCH")return changeStatus(request,url,segments[3],env,auth);
