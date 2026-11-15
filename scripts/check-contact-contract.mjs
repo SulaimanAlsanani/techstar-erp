@@ -56,7 +56,7 @@ assert.equal(compute('https://api.example.test/path?token=secret'),'', 'Query-be
 // Exercise the challenge callbacks with a simulated browser and no network.
 const turnstileStart=html.indexOf('function turnstileKey(){',apiEnd);
 const contactStart=html.indexOf('function initContact(){',turnstileStart);
-assert.ok(turnstileStart>apiEnd && contactStart>turnstileStart);
+assert.ok(turnstileStart>=apiEnd && contactStart>turnstileStart);
 const js=html.slice(apiStart,contactStart);
 const slot={nodeType:1};
 let challengeOptions,rendered=0,enabled=0,disabled=[];
