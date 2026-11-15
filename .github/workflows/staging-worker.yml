@@ -42,6 +42,7 @@ jobs:
           node --check src/index.mjs
           node --test test/*.test.mjs
           python scripts/check-schema.py
+          python scripts/check-backup-restore.py
       - name: Reject missing Cloudflare credentials
         run: |
           set -euo pipefail
