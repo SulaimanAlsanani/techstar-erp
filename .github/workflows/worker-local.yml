@@ -1,0 +1,63 @@
+name: Validate Cloudflare Worker locally
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/worker-local.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/worker-local.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: techstar-worker-local-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  worker-local:
+    name: Test Worker and migrated D1 locally
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      CI: "true"
+      WRANGLER_SEND_METRICS: "false"
+      TECHSTAR_STAGING_D1_ID: "00000000-0000-0000-0000-000000000001"
+      TECHSTAR_STAGING_RATE_NAMESPACE: "321890"
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate TypeScript-independent source tests
+        run: |
+          node --check src/index.mjs
+          node --test test/*.test.mjs
+          python scripts/check-schema.py
+      - name: Generate isolated temporary local Cloudflare config
+        run: |
+          python scripts/prepare-staging.py
+          python scripts/check-staging.py --config .wrangler-staging.toml --require-ready
+          grep -Fxq 'LEAD_INGESTION_ENABLED = "false"' .wrangler-staging.toml
+      - name: Install local Wrangler runtime
+        run: npm install --no-audit --no-fund
+      - name: Apply all D1 migrations to local test storage
+        run: |
+          npx --no-install wrangler d1 migrations apply techstar-leads-staging --local --config .wrangler-staging.toml --persist-to .wrangler/state
+      - name: Smoke test live local Worker HTTP endpoints
+        run: node scripts/smoke-local-worker.mjs
+      - name: Verify public site was not modified
+        run: |
+          test -f ../index.html
+          test ! -f ../.dev.vars
