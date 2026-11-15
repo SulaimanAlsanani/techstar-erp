@@ -469,3 +469,68 @@ test("CRM export history is restricted to administrators",async()=>{
  assert.equal(payload.events[0].filters.searched,true);
  assert.equal(payload.events[0].filters.q,undefined);
 });
+
+
+function noteDB(){
+  const notes=[];
+  return {
+    notes,
+    prepare(sql){
+      let args=[];
+      return {
+        bind(...a){args=a;return this},
+        async first(){
+          if(sql.startsWith("SELECT id FROM leads"))
+            return args[0]===LEAD_ID?{id:LEAD_ID}:null;
+          throw Error("Unexpected notes lookup: "+sql);
+        },
+        async all(){
+          if(!sql.includes("FROM lead_notes"))throw Error("Unexpected notes query: "+sql);
+          return {results:notes.filter(n=>n.lead_id===args[0]).slice().reverse()};
+        },
+        async run(){
+          if(!sql.startsWith("INSERT INTO lead_notes"))throw Error("Unexpected notes insert");
+          notes.push({
+            id:args[0],lead_id:args[1],actor_email:args[2],body:args[3],
+            created_at:"2026-11-15 10:00:00"
+          });
+          return {meta:{changes:1}};
+        }
+      };
+    }
+  };
+}
+test("CRM notes are visible to viewer but only admin can add them",async()=>{
+ const db=noteDB();
+ const viewer=await sign(VIEWER);
+ const initial=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/notes","GET",viewer),env(db));
+ assert.equal(initial.status,200);
+ assert.deepEqual(await initial.json(),{notes:[]});
+ const denied=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/notes","POST",viewer,{text:"A note"}),env(db));
+ assert.equal(denied.status,403);
+ assert.equal(db.notes.length,0);
+ const admin=await sign(ADMIN);
+ const create=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/notes","POST",admin,{
+   text:'  تم الاتصال بالعميل <script>alert("x")</script>  '
+ }),env(db));
+ assert.equal(create.status,201);
+ assert.equal((await create.json()).created,true);
+ const viewed=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/notes","GET",viewer),env(db));
+ const history=await viewed.json();
+ assert.equal(history.notes.length,1);
+ assert.equal(history.notes[0].actor,ADMIN);
+ assert.equal(history.notes[0].text,'تم الاتصال بالعميل <script>alert("x")</script>');
+ assert.equal(db.notes.length,1);
+});
+test("CRM notes validation and cross-site protections reject unsafe requests",async()=>{
+ const admin=await sign(ADMIN),db=noteDB();
+ for(const input of [{text:" "},{text:"x".repeat(1501)},{text:42},null]){
+   const response=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/notes","POST",admin,input),env(db));
+   assert.equal(response.status,422);
+ }
+ const crossSite=await worker.fetch(request("/admin/api/leads/"+LEAD_ID+"/notes","POST",admin,{text:"note"},"https://attacker.test"),env(db));
+ assert.equal(crossSite.status,403);
+ const missing=await worker.fetch(request("/admin/api/leads/123e4567-e89b-42d3-a456-426614174000/notes","GET",admin),env(db));
+ assert.equal(missing.status,404);
+ assert.equal(db.notes.length,0);
+});
