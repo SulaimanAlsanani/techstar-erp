@@ -359,6 +359,60 @@ async function changeFollowUp(request,url,id,env,actor){
   return json({updated:true,id,assignedTo,followUpAt,revision:revision+1});
 }
 
+async function followUpCompletions(id,db){
+  if(badPath(id))return fail("invalid_id",422);
+  const lead=await db.prepare("SELECT id FROM leads WHERE id = ?").bind(id).first();
+  if(!lead)return fail("lead_not_found",404);
+  const rows=await db.prepare(
+    "SELECT id,actor_email,due_at,completed_at FROM lead_followup_completions "+
+    "WHERE lead_id = ? ORDER BY completed_at DESC,id DESC LIMIT 100"
+  ).bind(id).all();
+  return json({events:(rows.results||[]).map(r=>({
+    id:r.id,actor:r.actor_email,dueAt:r.due_at,completedAt:r.completed_at
+  }))});
+}
+async function completeFollowUp(request,url,id,env,actor){
+  if(actor.role!=="admin")return fail("permission_denied",403);
+  if(badPath(id))return fail("invalid_id",422);
+  const origin=request.headers.get("origin");
+  if(origin&&origin!==url.origin)return fail("origin_not_allowed",403);
+  if(request.headers.get("content-type")?.split(";")[0].trim()!=="application/json")
+    return fail("invalid_content_type",415);
+  const length=Number(request.headers.get("content-length"));
+  if(Number.isFinite(length)&&length>256)return fail("invalid_body",413);
+  let payload;
+  try{
+    const raw=await request.text();
+    if(new TextEncoder().encode(raw).length>256)return fail("invalid_body",413);
+    payload=JSON.parse(raw);
+  }catch{return fail("invalid_json",400)}
+  if(!payload||typeof payload!=="object"||Array.isArray(payload)||
+     !Number.isSafeInteger(payload.revision)||payload.revision<0)
+    return fail("invalid_fields",422);
+  const old=await env.DB.prepare(
+    "SELECT follow_up_at,revision,status FROM leads WHERE id = ?"
+  ).bind(id).first();
+  if(!old)return fail("lead_not_found",404);
+  if(old.revision!==payload.revision)return fail("revision_conflict",409);
+  if(!old.follow_up_at)return fail("no_scheduled_followup",422);
+  if(["won","lost","archived"].includes(old.status))
+    return fail("closed_lead",422);
+  const update=env.DB.prepare(
+    "UPDATE leads SET follow_up_at = '', revision = revision + 1, "+
+    "updated_at = datetime('now') WHERE id = ? AND revision = ? AND "+
+    "follow_up_at = ? AND status NOT IN ('won','lost','archived')"
+  ).bind(id,payload.revision,old.follow_up_at);
+  const audit=env.DB.prepare(
+    "INSERT INTO lead_followup_completions "+
+    "(id,lead_id,actor_email,due_at) "+
+    "SELECT ?,id,?,? FROM leads WHERE id = ? AND revision = ? AND changes() = 1"
+  ).bind(crypto.randomUUID(),actor.email,old.follow_up_at,id,payload.revision+1);
+  const results=await env.DB.batch([update,audit]);
+  if(results?.[0]?.meta?.changes!==1)return fail("revision_conflict",409);
+  if(results?.[1]?.meta?.changes!==1)return fail("audit_unavailable",503);
+  return json({completed:true,id,revision:payload.revision+1});
+}
+
 /* No CORS on these routes. They are intended for a Cloudflare Access-protected
  * same-origin Worker admin UI, never the GitHub Pages public form.
  */
@@ -386,6 +440,12 @@ export async function handleAdminAPI(request,env,url){
     }
     if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="followup"){
       if(request.method==="PATCH")return changeFollowUp(request,url,segments[3],env,auth);
+    }
+    if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="followup-completions"){
+      if(request.method==="GET")return followUpCompletions(segments[3],env.DB);
+    }
+    if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="complete-followup"){
+      if(request.method==="POST")return completeFollowUp(request,url,segments[3],env,auth);
     }
     if(segments.length===5&&segments[0]==="admin"&&segments[1]==="api"&&segments[2]==="leads"&&segments[4]==="followup-history"){
       if(request.method==="GET")return followUpHistory(segments[3],env.DB);
