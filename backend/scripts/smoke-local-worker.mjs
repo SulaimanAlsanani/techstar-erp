@@ -5,20 +5,22 @@
  */
 import assert from "node:assert/strict";
 import {spawn} from "node:child_process";
+import {fileURLToPath} from "node:url";
 
 const port=8791;
 const base="http://127.0.0.1:"+port;
 const webOrigin="https://sulaimanalsanani.github.io";
 const logs=[];
-const runner=spawn(process.platform==="win32"?"npx.cmd":"npx",[
-  "--no-install","wrangler","dev","--local",
+const runner=spawn(process.execPath,[
+  "./node_modules/wrangler/bin/wrangler.js","dev","--local",
   "--config",".wrangler-staging.toml",
   "--ip","127.0.0.1","--port",String(port),
   "--persist-to",".wrangler/state"
 ],{
-  cwd:new URL("..",import.meta.url),
+  cwd:fileURLToPath(new URL("..",import.meta.url)),
   env:{...process.env,WRANGLER_SEND_METRICS:"false",CI:"true"},
   stdio:["ignore","pipe","pipe"],
+  detached:process.platform!=="win32",
   shell:false
 });
 let exited=false;
@@ -86,10 +88,22 @@ try{
   console.error("Wrangler tail:",logs.join("").split("\n").slice(-14).join("\n"));
   process.exitCode=1;
 }finally{
-  runner.kill("SIGTERM");
+  const stop=(signal)=>{
+    if(!runner.pid)return;
+    try{
+      // On Unix kill Wrangler and the local workerd child process together.
+      if(process.platform==="win32")runner.kill(signal);
+      else process.kill(-runner.pid,signal);
+    }catch(error){
+      if(error.code!=="ESRCH")throw error;
+    }
+  };
+  stop("SIGTERM");
   await Promise.race([
     new Promise(resolve=>runner.once("exit",resolve)),
-    new Promise(resolve=>setTimeout(resolve,2500))
+    new Promise(resolve=>setTimeout(resolve,1800))
   ]);
-  if(!exited)runner.kill("SIGKILL");
+  if(!exited)stop("SIGKILL");
+  runner.stdout?.destroy();
+  runner.stderr?.destroy();
 }
