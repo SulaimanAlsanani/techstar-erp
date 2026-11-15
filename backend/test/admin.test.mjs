@@ -645,3 +645,34 @@ test("completion requires scheduled, open lead and a safe revision",async()=>{
  assert.equal(stale.status,409);
  assert.equal(db.completions.length,0);
 });
+
+
+test("Upcoming 7-day follow-ups filter uses server time and excludes closed leads",async()=>{
+ const token=await sign(ADMIN);
+ const statements=[];
+ const db={prepare(sql){
+   const call={sql,args:[]};statements.push(call);
+   return {bind(...args){call.args=args;return this},
+     async all(){return {results:[]}},
+     async first(){return {total:0}}};
+ }};
+ const response=await worker.fetch(request(
+   "/admin/api/leads?due=upcoming7&assigned=mine&limit=20","GET",token
+ ),env(db));
+ assert.equal(response.status,200);
+ assert.equal(statements.length,2);
+ assert.ok(statements[0].sql.includes("'+7 days'"));
+ assert.match(statements[0].sql,/status NOT IN \('won','lost','archived'\)/);
+ assert.match(statements[0].sql,/assigned_to = \?/);
+ assert.ok(statements[0].args.includes(ADMIN));
+});
+
+test("CRM UI exposes follow-up completion and accessible metric navigation",()=>{
+ assert.match(adminPage,/id="complete-followup"/);
+ assert.match(adminPage,/id="followup-completions"/);
+ assert.match(adminPage,/value="upcoming7"/);
+ assert.match(adminApp,/aria-label/);
+ assert.match(adminApp,/stat stat-action/);
+ assert.match(adminApp,/scrollIntoView/);
+ assert.match(adminApp,/complete-followup/);
+});
