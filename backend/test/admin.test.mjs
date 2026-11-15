@@ -442,3 +442,30 @@ test("CSV export rejects invalid filters before accessing the database",async()=
  assert.equal(response.status,422);
  assert.equal(accessed,false);
 });
+
+
+test("CRM export history is restricted to administrators",async()=>{
+ const viewer=await sign(VIEWER);
+ const db=exportDB([]);
+ const denied=await worker.fetch(request("/admin/api/exports","GET",viewer),env(db));
+ assert.equal(denied.status,403);
+ assert.equal(db.statements.length,0);
+ const admin=await sign(ADMIN);
+ const result=await worker.fetch(request("/admin/api/exports","GET",admin),env({
+   prepare(sql){
+     assert.match(sql,/FROM crm_export_audit/);
+     assert.match(sql,/LIMIT 50/);
+     return {async all(){return {results:[{
+       id:"export-record",actor_email:ADMIN,record_count:12,
+       filter_summary:JSON.stringify({status:"new",due:"",assigned:"",searched:true}),
+       created_at:"2026-11-15 00:00:00"
+     }]}}};
+   }
+ }));
+ assert.equal(result.status,200);
+ const payload=await result.json();
+ assert.equal(payload.events[0].actor,ADMIN);
+ assert.equal(payload.events[0].count,12);
+ assert.equal(payload.events[0].filters.searched,true);
+ assert.equal(payload.events[0].filters.q,undefined);
+});
