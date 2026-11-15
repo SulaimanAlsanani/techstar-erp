@@ -358,3 +358,87 @@ test("unassigned and unscheduled filters use fixed SQL without user interpolatio
  assert.match(calls[0],/assigned_to = ''/);
  assert.match(calls[0],/follow_up_at = ''/);
 });
+
+
+test("CSV export is forbidden to viewers even with signed Access JWT",async()=>{
+ const token=await sign(VIEWER),db=fakeDB();
+ const response=await worker.fetch(request("/admin/api/leads/export.csv","GET",token),env(db));
+ assert.equal(response.status,403);
+ assert.equal((await response.json()).error,"permission_denied");
+});
+
+function exportDB(rows,{auditChanges=1}={}){
+ const statements=[];
+ return {
+   statements,
+   prepare(sql){
+     const item={sql,args:[]};statements.push(item);
+     return {
+       bind(...values){item.args=values;return this},
+       async all(){
+         if(!sql.includes("FROM leads")||!sql.includes("LIMIT 501"))throw Error("Unbounded export query");
+         return {results:rows};
+       },
+       async run(){
+         if(!sql.includes("INSERT INTO crm_export_audit"))throw Error("Audit statement missing");
+         return {meta:{changes:auditChanges}};
+       }
+     };
+   }
+ };
+}
+test("administrator export quotes CSV, neutralizes spreadsheet formulas and writes audit",async()=>{
+ const token=await sign(ADMIN);
+ const db=exportDB([
+   {...seed,name:'=HYPERLINK("https://danger.test")',business:'Company, "North"',
+     email:"user@company.test",notes:"\t+SUM(1,2)\nContinued",assigned_to:VIEWER},
+   {...seed,id:"other",name:"علي",business:"شركة تجريبية",notes:"-42",
+     reference:"TS-2"}
+ ]);
+ const response=await worker.fetch(request(
+   "/admin/api/leads/export.csv?assigned=mine&status=new&q=needle","GET",token),env(db));
+ assert.equal(response.status,200);
+ assert.match(response.headers.get("content-type"),/text\/csv/);
+ assert.match(response.headers.get("content-disposition"),/attachment/);
+ assert.equal(response.headers.get("cache-control"),"no-store, private");
+ assert.equal(response.headers.get("access-control-allow-origin"),null);
+ const csv=await response.text();
+ assert.ok(csv.includes('"\'=HYPERLINK('), "Excel formula must be prefixed");
+ assert.ok(csv.includes('"Company, ""North"""'), "Comma and double quote must be escaped");
+ assert.ok(csv.includes('"\'-42"'), "Numeric-looking formulas must be prefixed");
+ assert.ok(!csv.includes("\nContinued"), "Raw newline inside customer fields must be flattened");
+ assert.equal(db.statements.length,2);
+ assert.ok(db.statements[0].sql.includes("assigned_to = ?"));
+ assert.ok(db.statements[0].args.includes(ADMIN));
+ assert.equal(db.statements[1].args[1],ADMIN);
+ assert.equal(db.statements[1].args[2],2);
+ const auditFilters=JSON.parse(db.statements[1].args[3]);
+ assert.deepEqual(auditFilters,{status:"new",due:"",assigned:"mine",searched:true});
+ assert.ok(!db.statements[1].args[3].includes("needle"),"Search values must not be logged");
+});
+
+test("CSV export refuses more than 500 records without writing audit",async()=>{
+ const token=await sign(ADMIN);
+ const db=exportDB(Array.from({length:501},(_,i)=>({...seed,id:String(i)})));
+ const response=await worker.fetch(request("/admin/api/leads/export.csv","GET",token),env(db));
+ assert.equal(response.status,413);
+ assert.equal((await response.json()).error,"export_limit_exceeded");
+ assert.equal(db.statements.length,1);
+});
+
+test("CSV export fails closed when audit cannot be persisted",async()=>{
+ const token=await sign(ADMIN),db=exportDB([seed],{auditChanges:0});
+ const response=await worker.fetch(request("/admin/api/leads/export.csv","GET",token),env(db));
+ assert.equal(response.status,503);
+ assert.equal((await response.json()).error,"audit_unavailable");
+ assert.equal(response.headers.get("content-type").includes("csv"),false);
+});
+
+test("CSV export rejects invalid filters before accessing the database",async()=>{
+ const token=await sign(ADMIN);
+ let accessed=false;
+ const db={prepare(){accessed=true;throw Error("Unexpected database access")}};
+ const response=await worker.fetch(request("/admin/api/leads/export.csv?due=tomorrow","GET",token),env(db));
+ assert.equal(response.status,422);
+ assert.equal(accessed,false);
+});
