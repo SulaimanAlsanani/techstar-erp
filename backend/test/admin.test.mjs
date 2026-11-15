@@ -46,9 +46,10 @@ function fakeDB(){
  const lead={...seed};
  const audit=[];
  const followupAudit=[];
+ const completions=[];
  let lastUpdate=0;
  return {
-  lead,audit,followupAudit,
+  lead,audit,followupAudit,completions,
   prepare(sql){
    let args=[];
    return {
@@ -60,12 +61,15 @@ function fakeDB(){
       if(sql.includes("SELECT status FROM leads"))return args[0]===lead.id?{status:lead.status}:null;
       if(sql.includes("SELECT assigned_to,follow_up_at,revision FROM leads"))
         return args[0]===lead.id?{assigned_to:lead.assigned_to,follow_up_at:lead.follow_up_at,revision:lead.revision}:null;
+      if(sql.includes("SELECT follow_up_at,revision,status FROM leads"))
+        return args[0]===lead.id?{follow_up_at:lead.follow_up_at,revision:lead.revision,status:lead.status}:null;
       throw Error("Unexpected first() query: "+sql);
     },
     async all(){
       if(sql.includes("GROUP BY status"))return {results:[{status:lead.status,total:1}]};
       if(sql.includes("FROM lead_audit"))return {results:audit};
       if(sql.includes("FROM lead_followup_audit"))return {results:followupAudit};
+      if(sql.includes("FROM lead_followup_completions"))return {results:completions};
       if(sql.includes("FROM leads")&&sql.includes("ORDER BY"))
         return {results:[{...lead}]};
       throw Error("Unexpected all() query: "+sql);
@@ -79,6 +83,20 @@ function fakeDB(){
   async batch(statements){
    assert.equal(statements.length,2);
    const [update,insert]=statements;
+   if(update.sql.includes("SET follow_up_at = ''")){
+     const changed=lead.id===update.args[0]&&lead.revision===update.args[1]&&
+       lead.follow_up_at===update.args[2]&&!!lead.follow_up_at&&
+       !["won","lost","archived"].includes(lead.status);
+     if(changed){
+       completions.push({
+         id:insert.args[0],actor_email:insert.args[1],due_at:insert.args[2],
+         completed_at:"2026-11-15T12:00:00.000Z"
+       });
+       lead.follow_up_at="";
+       lead.revision++;
+     }
+     return [{meta:{changes:changed?1:0}},{meta:{changes:changed?1:0}}];
+   }
    if(update.sql.includes("SET assigned_to")){
      const changed=lead.id===update.args[2]&&lead.revision===update.args[3];
      if(changed){
