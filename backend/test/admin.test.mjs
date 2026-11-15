@@ -534,3 +534,39 @@ test("CRM notes validation and cross-site protections reject unsafe requests",as
  assert.equal(missing.status,404);
  assert.equal(db.notes.length,0);
 });
+
+
+test("CRM operational readiness is admin-only, redacted and works without D1",async()=>{
+ const admin=await sign(ADMIN),viewer=await sign(VIEWER);
+ const configuration=env(fakeDB());
+ delete configuration.DB;
+ configuration.TURNSTILE_SECRET="private-turnstile-test-secret";
+ configuration.LEAD_RATE_LIMITER={async limit(){return {success:true}}};
+ configuration.LEAD_INGESTION_ENABLED="false";
+ const viewerResponse=await worker.fetch(request("/admin/api/system","GET",viewer),configuration);
+ assert.equal(viewerResponse.status,403);
+ const result=await worker.fetch(request("/admin/api/system","GET",admin),configuration);
+ assert.equal(result.status,200);
+ const report=await result.json();
+ assert.equal(report.checks.accessAuthenticated,true);
+ assert.equal(report.checks.d1Binding,false);
+ assert.equal(report.checks.rateLimitBinding,true);
+ assert.equal(report.checks.turnstileSecretPresent,true);
+ assert.equal(report.checks.leadIngestionEnabled,false);
+ assert.equal(report.leadIntakeConfigured,false);
+ assert.ok(!JSON.stringify(report).includes(configuration.TURNSTILE_SECRET),
+   "Secret must never be returned by diagnostics");
+ const me=await worker.fetch(request("/admin/api/me","GET",viewer),configuration);
+ assert.equal(me.status,200,"Authenticated identity should work even if D1 is down");
+ assert.deepEqual(await me.json(),{email:VIEWER,role:"viewer"});
+});
+test("CRM readiness only describes configuration, never promises remote health",async()=>{
+ const admin=await sign(ADMIN),configuration=env(fakeDB());
+ configuration.TURNSTILE_SECRET="private-value";
+ configuration.LEAD_RATE_LIMITER={async limit(){return {success:true}}};
+ configuration.LEAD_INGESTION_ENABLED="true";
+ const result=await worker.fetch(request("/admin/api/system","GET",admin),configuration);
+ const report=await result.json();
+ assert.equal(report.leadIntakeConfigured,true);
+ assert.match(report.note,/binding\/configuration checks only/i);
+});
