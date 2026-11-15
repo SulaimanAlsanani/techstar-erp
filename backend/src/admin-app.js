@@ -181,6 +181,7 @@
    $('details').replaceChildren();
    $('audit').replaceChildren();
    $('followup-audit').replaceChildren();
+   $('followup-completions').replaceChildren();
    $('note-list').replaceChildren();
    $('note-text').value='';
    $('detail-message').textContent='جارٍ تحميل التفاصيل...';
@@ -189,11 +190,12 @@
    $('note-form').classList.toggle('hidden',role!=='admin');
    $('detail').showModal();
    try{
-     const [data,audit,followupAudit,notes]=await Promise.all([
+     const [data,audit,followupAudit,notes,completions]=await Promise.all([
        api('/leads/'+encodeURIComponent(id)),
        api('/leads/'+encodeURIComponent(id)+'/audit'),
        api('/leads/'+encodeURIComponent(id)+'/followup-history'),
-       api('/leads/'+encodeURIComponent(id)+'/notes')
+       api('/leads/'+encodeURIComponent(id)+'/notes'),
+       api('/leads/'+encodeURIComponent(id)+'/followup-completions')
      ]);
      if(!$('detail').open)return;
      current=data.lead;
@@ -222,6 +224,7 @@
      $('followup-time').value=due&&Number.isFinite(due.valueOf())
        ?new Date(due.getTime()-due.getTimezoneOffset()*60000).toISOString().slice(0,16):'';
      $('save-followup').disabled=role!=='admin';
+     $('complete-followup').disabled=role!=='admin'||!current.followUpAt||['won','lost','archived'].includes(current.status);
      const list=$('audit');list.replaceChildren();
      for(const event of audit.events||[]){
        list.append(node('li',fmt(event.createdAt)+' — '+event.actor+': '+(statuses[event.from]||event.from)+' ← '+(statuses[event.to]||event.to)));
@@ -234,6 +237,12 @@
          ' ← '+(event.toAssignee||'غير معين')+' · '+fmt(event.fromDue)+' ← '+fmt(event.toDue)));
      }
      if(!followupAudit.events?.length)history.append(node('li','لا يوجد سجل تعيينات بعد.'));
+     const completedList=$('followup-completions');completedList.replaceChildren();
+     for(const event of completions.events||[]){
+       completedList.append(node('li',fmt(event.completedAt)+' — '+event.actor+
+         ' — موعد المتابعة السابق: '+fmt(event.dueAt)));
+     }
+     if(!completions.events?.length)completedList.append(node('li','لم تُنجز متابعات بعد.'));
      $('detail-message').textContent='';
    }catch(e){$('detail-message').textContent=error(e)}
  }
@@ -257,6 +266,23 @@
    }catch(e){
      $('detail-message').textContent=error(e);
    }finally{button.disabled=false}
+ }
+ async function completeFollowup(){
+   if(role!=='admin'||!current?.followUpAt)return;
+   if(!window.confirm('تأكيد إنجاز المتابعة الحالية؟ سيُسجّل الموظف والتوقيت ويزال الموعد من قائمة المتابعات المفتوحة.'))return;
+   const targetId=current.id,revision=current.revision;
+   const button=$('complete-followup');button.disabled=true;
+   $('detail-message').textContent='جارٍ تسجيل إنجاز المتابعة...';
+   try{
+     await api('/leads/'+encodeURIComponent(targetId)+'/complete-followup',{
+       method:'POST',headers:{'content-type':'application/json'},
+       body:JSON.stringify({revision})
+     });
+     $('detail').close();current=null;
+     await Promise.all([loadSummary(),loadLeads()]);
+     message('تم تسجيل إنجاز المتابعة وإزالة موعدها من المهام المفتوحة.');
+   }catch(e){$('detail-message').textContent=error(e)}
+   finally{button.disabled=false}
  }
  async function saveFollowup(event){
    event.preventDefault();
@@ -320,6 +346,7 @@
    $('detail').addEventListener('close',()=>{current=null});
    $('status-form').addEventListener('submit',saveStatus);
    $('followup-form').addEventListener('submit',saveFollowup);
+   $('complete-followup').addEventListener('click',completeFollowup);
    $('note-form').addEventListener('submit',saveNote);
    $('filters').addEventListener('submit',e=>{e.preventDefault();offset=0;loadLeads()});
    $('refresh').addEventListener('click',()=>{loadSummary().catch(()=>{});loadLeads();loadExportHistory().catch(()=>{});loadSystemStatus().catch(()=>{});});
