@@ -588,3 +588,60 @@ test("CRM readiness only describes configuration, never promises remote health",
  assert.equal(report.leadIntakeConfigured,true);
  assert.match(report.note,/binding\/configuration checks only/i);
 });
+
+
+test("admin completes scheduled follow-up and leaves a permanent audit record",async()=>{
+ const db=fakeDB(),admin=await sign(ADMIN),viewer=await sign(VIEWER);
+ const due="2026-11-19T10:30:00.000Z";
+ db.lead.follow_up_at=due;
+ const target="/admin/api/leads/"+LEAD_ID;
+ const completed=await worker.fetch(request(target+"/complete-followup","POST",admin,{revision:0}),env(db));
+ assert.equal(completed.status,200);
+ assert.deepEqual(await completed.json(),{completed:true,id:LEAD_ID,revision:1});
+ assert.equal(db.lead.follow_up_at,"");
+ assert.equal(db.lead.revision,1);
+ assert.equal(db.completions.length,1);
+ assert.equal(db.completions[0].due_at,due);
+ assert.equal(db.completions[0].actor_email,ADMIN);
+ const history=await worker.fetch(request(target+"/followup-completions","GET",viewer),env(db));
+ assert.equal(history.status,200);
+ const data=await history.json();
+ assert.equal(data.events.length,1);
+ assert.equal(data.events[0].dueAt,due);
+ assert.equal(data.events[0].actor,ADMIN);
+ const retry=await worker.fetch(request(target+"/complete-followup","POST",admin,{revision:0}),env(db));
+ assert.equal(retry.status,409);
+ assert.equal(db.completions.length,1);
+});
+
+test("viewer and foreign origins cannot complete scheduled follow-ups",async()=>{
+ const db=fakeDB(),admin=await sign(ADMIN),viewer=await sign(VIEWER);
+ db.lead.follow_up_at="2026-11-20T12:30:00.000Z";
+ const target="/admin/api/leads/"+LEAD_ID+"/complete-followup";
+ const viewerDenied=await worker.fetch(request(target,"POST",viewer,{revision:0}),env(db));
+ assert.equal(viewerDenied.status,403);
+ const originDenied=await worker.fetch(request(target,"POST",admin,{revision:0},"https://untrusted.example"),env(db));
+ assert.equal(originDenied.status,403);
+ assert.equal(db.completions.length,0);
+ assert.equal(db.lead.revision,0);
+});
+
+test("completion requires scheduled, open lead and a safe revision",async()=>{
+ const db=fakeDB(),token=await sign(ADMIN),target="/admin/api/leads/"+LEAD_ID+"/complete-followup";
+ const noDue=await worker.fetch(request(target,"POST",token,{revision:0}),env(db));
+ assert.equal(noDue.status,422);
+ assert.equal((await noDue.json()).error,"no_scheduled_followup");
+ db.lead.follow_up_at="2026-11-20T12:30:00.000Z";
+ for(const bad of [{revision:-1},{revision:"0"},null,[]]){
+   const response=await worker.fetch(request(target,"POST",token,bad),env(db));
+   assert.equal(response.status,422);
+ }
+ db.lead.status="won";
+ const closed=await worker.fetch(request(target,"POST",token,{revision:0}),env(db));
+ assert.equal(closed.status,422);
+ db.lead.status="in_progress";
+ db.lead.revision=1;
+ const stale=await worker.fetch(request(target,"POST",token,{revision:0}),env(db));
+ assert.equal(stale.status,409);
+ assert.equal(db.completions.length,0);
+});
