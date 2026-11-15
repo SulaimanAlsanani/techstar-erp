@@ -63,6 +63,28 @@
      wrap.append(card);
    }
  }
+ async function loadExportHistory(){
+   if(role!=='admin')return;
+   const result=await api('/exports');
+   const wrap=$('export-audit-body');wrap.replaceChildren();
+   for(const event of result.events||[]){
+     const filters=event.filters||{};
+     const description=[
+       filters.status?('الحالة: '+(statuses[filters.status]||filters.status)):'',
+       filters.due?('الموعد: '+filters.due):'',
+       filters.assigned?('المسند: '+filters.assigned):'',
+       filters.searched?'مع بحث':''
+     ].filter(Boolean).join(' · ')||'دون مرشحات';
+     const row=node('tr');
+     for(const value of [event.actor,fmt(event.createdAt),event.count,description])
+       row.append(node('td',value));
+     wrap.append(row);
+   }
+   if(!result.events?.length){
+     const row=node('tr'),cell=node('td','لا توجد عمليات تصدير مسجّلة.');
+     cell.colSpan=4;row.append(cell);wrap.append(row);
+   }
+ }
  async function loadLeads(){
    const ticket=++sequence;
    message('جارٍ تحميل الطلبات...');
@@ -231,6 +253,7 @@
      document.body.append(link);link.click();link.remove();
      setTimeout(()=>URL.revokeObjectURL(url),1000);
      message('تم إعداد ملف CSV وتسجيل عملية التصدير.');
+     loadExportHistory().catch(()=>{});
    }catch(e){message(error(e),true)}
    finally{button.disabled=false}
  }
@@ -240,7 +263,7 @@
    $('status-form').addEventListener('submit',saveStatus);
    $('followup-form').addEventListener('submit',saveFollowup);
    $('filters').addEventListener('submit',e=>{e.preventDefault();offset=0;loadLeads()});
-   $('refresh').addEventListener('click',()=>{loadSummary().catch(()=>{});loadLeads()});
+   $('refresh').addEventListener('click',()=>{loadSummary().catch(()=>{});loadLeads();loadExportHistory().catch(()=>{});});
    $('export-csv').addEventListener('click',downloadCSV);
    $('prev').addEventListener('click',()=>{offset=Math.max(0,offset-limit);loadLeads()});
    $('next').addEventListener('click',()=>{offset+=limit;loadLeads()});
@@ -248,8 +271,9 @@
      const me=await api('/me');
      role=me.role;
      $('export-csv').classList.toggle('hidden',role!=='admin');
+     $('export-audit-panel').classList.toggle('hidden',role!=='admin');
      $('identity').textContent=me.email+' · '+(role==='admin'?'مدير':'قراءة فقط');
-     await Promise.all([loadSummary(),loadLeads()]);
+     await Promise.all([loadSummary(),loadLeads(),loadExportHistory()]);
    }catch(e){
      $('identity').textContent='غير متصل';
      message(error(e),true);
