@@ -44,6 +44,8 @@ jobs:
           node --test backend/test/*.test.mjs
       - name: Validate D1 SQLite migrations and audit transactions
         run: python backend/scripts/check-schema.py
+      - name: Verify CRM backup and restoration before publishing
+        run: python backend/scripts/check-backup-restore.py
       - name: Inspect Cloudflare staging configuration before release
         run: python backend/scripts/check-staging.py
       - name: Test isolated Cloudflare staging config with fake account values
