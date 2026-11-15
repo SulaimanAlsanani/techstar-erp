@@ -99,7 +99,7 @@ assert.match(failMessage,/تعذر تحميل اختبار الحماية/);
 // Test the readiness probe with synthetic health responses and blocked access.
 const healthBegin=html.indexOf('async function checkLeadIntakeReady(');
 const healthEnd=html.indexOf('function initContact(){',healthBegin);
-assert.ok(healthBegin>contactStart&&healthEnd>healthBegin);
+assert.ok(healthBegin>turnstileStart && healthEnd===contactStart && healthEnd>healthBegin);
 assert.ok(html.includes('checkLeadIntakeReady(apiBase()).then(serviceReady=>'),
  'Online lead form must first check the backend health gate');
 const probeSource=html.slice(healthBegin,healthEnd);
