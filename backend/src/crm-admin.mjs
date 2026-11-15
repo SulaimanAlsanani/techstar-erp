@@ -38,20 +38,15 @@ function formatLead(r,details=false){
     email:r.email,phone:r.phone,industry:r.industry,solution:r.solution_id,notes:r.notes};
   return publicFields;
 }
-async function listLeads(url,db,actor){
+function buildLeadFilter(url,actor){
   const status=url.searchParams.get("status")||"";
-  const rawLimit=url.searchParams.get("limit")||"20";
-  const rawOffset=url.searchParams.get("offset")||"0";
   const q=(url.searchParams.get("q")||"").trim();
   const due=url.searchParams.get("due")||"";
   const assigned=url.searchParams.get("assigned")||"";
   if((due&&!["overdue","scheduled","unscheduled"].includes(due))||
      (assigned&&!["mine","unassigned"].includes(assigned))||
-     (status&&!STATUSES.includes(status))||!(/^[1-9][0-9]*$/.test(rawLimit))||
-     !(/^(0|[1-9][0-9]*)$/.test(rawOffset))||q.length>80)
-    return fail("invalid_filters",422);
-  const limit=Number(rawLimit),offset=Number(rawOffset);
-  if(limit>50||offset>5000)return fail("invalid_filters",422);
+     (status&&!STATUSES.includes(status))||q.length>80)
+    return null;
   const where=[];
   const binds=[];
   if(status){where.push("status = ?");binds.push(status)}
@@ -69,12 +64,25 @@ async function listLeads(url,db,actor){
     for(let i=0;i<5;i++)binds.push("%"+escaped+"%");
   }
   const sqlWhere=where.length?" WHERE "+where.join(" AND "):"";
+  return {sqlWhere,binds};
+}
+async function listLeads(url,db,actor){
+  const rawLimit=url.searchParams.get("limit")||"20";
+  const rawOffset=url.searchParams.get("offset")||"0";
+  if(!(/^[1-9][0-9]*$/.test(rawLimit))||!(/^(0|[1-9][0-9]*)$/.test(rawOffset)))
+    return fail("invalid_filters",422);
+  const limit=Number(rawLimit),offset=Number(rawOffset);
+  if(limit>50||offset>5000)return fail("invalid_filters",422);
+  const filter=buildLeadFilter(url,actor);
+  if(!filter)return fail("invalid_filters",422);
+  const {sqlWhere,binds}=filter;
   const list=await db.prepare("SELECT id,reference,name,business,package_id,status,branches,pos_count,created_at,updated_at,assigned_to,follow_up_at,revision FROM leads"+
     sqlWhere+" ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?")
     .bind(...binds,limit,offset).all();
   const count=await db.prepare("SELECT COUNT(*) AS total FROM leads"+sqlWhere).bind(...binds).first();
   return json({items:(list.results||[]).map(x=>formatLead(x)),total:Number(count?.total||0),limit,offset});
 }
+
 async function leadDetail(id,db){
   if(badPath(id))return fail("invalid_id",422);
   const row=await db.prepare("SELECT * FROM leads WHERE id = ?").bind(id).first();
