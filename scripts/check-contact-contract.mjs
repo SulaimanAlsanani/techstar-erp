@@ -67,8 +67,7 @@ const browser={
  }
 };
 const fakeDoc={contains:element=>element===slot,head:{appendChild(){}}};
-const makeChallenge=new Function('window','document',' fields, Turnstile gate, server receipt, HTTPS URLs.');
-,'URL',
+const makeChallenge=new Function('window','document','$','URL',
  js+'return {initTurnstile,apiBase,turnstileKey};');
 const challenge=makeChallenge(browser,fakeDoc,selector=>selector==='#turnstile-slot'?slot:null,URL);
 challenge.initTurnstile(()=>enabled++,message=>disabled.push(message));
