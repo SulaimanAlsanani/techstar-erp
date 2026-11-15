@@ -41,6 +41,7 @@ def setup_connection(preexisting=True):
         db.commit()
     db.executescript((MIGRATIONS / "0002_crm_audit.sql").read_text(encoding="utf-8"))
     db.executescript((MIGRATIONS / "0003_crm_followup.sql").read_text(encoding="utf-8"))
+    db.executescript((MIGRATIONS / "0004_crm_exports.sql").read_text(encoding="utf-8"))
     return db
 
 
@@ -207,6 +208,35 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(self.db.execute(upcoming_sql).fetchone()[0], 1)
         self.db.execute("UPDATE leads SET status='archived' WHERE id='lead-1'")
         self.assertEqual(self.db.execute(upcoming_sql).fetchone()[0], 0)
+
+    def test_export_audit_records_are_insertable_but_not_mutable(self):
+        with self.db:
+            self.db.execute(
+                "INSERT INTO crm_export_audit "
+                "(id,actor_email,record_count,filter_summary) VALUES (?,?,?,?)",
+                ("export-1", "admin@example.test", 2, '{"searched":false}')
+            )
+        row = self.db.execute(
+            "SELECT actor_email,record_count FROM crm_export_audit WHERE id='export-1'"
+        ).fetchone()
+        self.assertEqual(row["record_count"], 2)
+        self.assertEqual(row["actor_email"], "admin@example.test")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "UPDATE crm_export_audit SET record_count=3 WHERE id='export-1'"
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "DELETE FROM crm_export_audit WHERE id='export-1'"
+            )
+
+    def test_export_audit_rejects_more_than_500_rows(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "INSERT INTO crm_export_audit "
+                "(id,actor_email,record_count,filter_summary) VALUES (?,?,?,?)",
+                ("export-2", "admin@example.test", 501, "{}")
+            )
 
     def test_invalid_branch_count_rejected(self):
         with self.assertRaises(sqlite3.IntegrityError):
