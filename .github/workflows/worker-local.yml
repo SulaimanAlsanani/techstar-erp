@@ -45,6 +45,7 @@ jobs:
           node --check src/index.mjs
           node --test test/*.test.mjs
           python scripts/check-schema.py
+          python -m unittest discover -s scripts -p 'test-*.py'
           python scripts/check-backup-restore.py
       - name: Generate isolated temporary local Cloudflare config
         run: |
