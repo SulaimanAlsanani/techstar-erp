@@ -116,6 +116,21 @@ python backend/scripts/check-staging.py --config backend/.wrangler-staging.toml 
 
 هذا الفحص **لا يتحقق من صلاحية رموز Cloudflare أو من تشغيل Access/Turnstile**؛ يجب اختبارها على Staging بعد إعدادها. لا تفعّل استقبال الطلبات أو تربط الموقع العام حتى تُعتمد الضوابط التشغيلية وسياسة الخصوصية وأذونات الوصول.
 
+### اختبار قبول Staging بعد النشر عبر HTTPS
+
+أضيف `scripts/smoke-staging-worker.mjs` لفحص عنوان Cloudflare Worker التجريبي **بعد نشره**. يتحقق من سبعة ضوابط: `/health`، وCORS للموقع المعتمد، ورفض الأصول الغريبة، وتهيئة OPTIONS، وإغلاق `POST /api/leads` افتراضيًا، وحماية لوحة الإدارة ومسار هوية الموظف. طلب POST الوحيد يرسل `{}` دون بيانات عميل فعلية، ويجب أن يفشل بالرمز 503 والخطأ `lead_ingestion_disabled`.
+
+يُشغّل الفحص باستخدام عنوان Worker التجريبي من نطاق `workers.dev`، ويرفض عنوان الإنتاج أو HTTP:
+
+```bash
+cd backend
+node scripts/smoke-staging-worker.mjs https://techstar-public-api-staging.YOUR-SUBDOMAIN.workers.dev
+```
+
+لتنفيذه تلقائيًا بعد GitHub Actions Staging، أضف Environment Variable باسم `TECHSTAR_STAGING_WORKER_URL` إلى Environment `cloudflare-staging` بالقيمة الدقيقة لعنوان Worker التجريبي. إذا غاب المتغير، يستمر النشر مع **تحذير صريح بعدم إجراء الاختبار الحي**. أما إذا حضر، فإن فشل أي فحص يجعل مهمة النشر تفشل في GitHub Actions، حتى لو كانت ملفات Worker قد نُشرت.
+
+لا يثبت هذا الفحص صحة D1 البعيدة أو صلاحية دخول مدير مخوّل، ولا يحل محل اختبارات Staging التفاعلية والاستعادة واعتماد سياسة الخصوصية.
+
 ## تهيئة Cloudflare قبل التجربة
 
 1. اعتمد الجهة المسؤولة عن بيانات العملاء والبيان القانوني وفترة الاحتفاظ والنسخ الاحتياطي والإجراءات التشغيلية.
