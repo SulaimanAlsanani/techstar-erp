@@ -58,11 +58,14 @@ jobs:
           grep -Fxq 'LEAD_INGESTION_ENABLED = "false"' backend/.wrangler-staging.toml
       - name: Prepare artifact
         run: |
-          mkdir -p _site/assets _site/restaurant-control-preview
+          mkdir -p _site/assets _site/restaurant-control-preview _site/print-monitor-preview
           cp index.html 404.html robots.txt sitemap.xml site.webmanifest _site/
           test -s restaurant-control-preview/index.html
           test -s restaurant-control-preview/quality-dashboard.svg
           cp restaurant-control-preview/index.html restaurant-control-preview/quality-dashboard.svg _site/restaurant-control-preview/
+          test -s print-monitor-preview/index.html
+          grep -q 'بيئة عرض مستقلة' print-monitor-preview/index.html
+          cp print-monitor-preview/index.html _site/print-monitor-preview/
           cp assets/techstar-icon.svg assets/din-next-arabic.css _site/assets/
           touch _site/.nojekyll
           printf '{"commit":"%s","branch":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > _site/deployment.json
@@ -177,4 +180,21 @@ jobs:
             sleep 12
           done
           echo "::error::Restaurant quality preview was not published"
+          exit 1
+
+      - name: Verify published print monitoring demo
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 8); do
+            if curl --fail --silent --show-error --location --max-time 15 "${SITE_URL%/}/print-monitor-preview/" -o /tmp/print-monitor-preview.html \
+              && grep -q 'مركز مراقبة الطباعة' /tmp/print-monitor-preview.html \
+              && grep -q 'بيئة عرض مستقلة' /tmp/print-monitor-preview.html; then
+              echo "Odoo print monitoring demo is published (mock data only)"
+              exit 0
+            fi
+            sleep 12
+          done
+          echo "::error::Print monitoring demo was not published"
           exit 1
