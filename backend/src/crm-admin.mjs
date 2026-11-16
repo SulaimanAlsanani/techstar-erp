@@ -38,12 +38,22 @@ function formatLead(r,details=false){
     email:r.email,phone:r.phone,industry:r.industry,solution:r.solution_id,notes:r.notes};
   return publicFields;
 }
+function validCalendarDate(value){
+  if(value==="")return true;
+  if(!/^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value))return false;
+  const date=new Date(value+"T00:00:00Z");
+  return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;
+}
 function buildLeadFilter(url,actor){
   const status=url.searchParams.get("status")||"";
   const q=(url.searchParams.get("q")||"").trim();
   const due=url.searchParams.get("due")||"";
   const assigned=url.searchParams.get("assigned")||"";
   const attention=url.searchParams.get("attention")||"";
+  const createdFrom=url.searchParams.get("created_from")||"";
+  const createdTo=url.searchParams.get("created_to")||"";
+  if(!validCalendarDate(createdFrom)||!validCalendarDate(createdTo)||
+     (createdFrom&&createdTo&&createdFrom>createdTo))return null;
   if((attention&&!["unassigned_new","stale_new"].includes(attention))||
      (due&&!["overdue","upcoming7","scheduled","unscheduled"].includes(due))||
      (assigned&&!["mine","unassigned"].includes(assigned))||
@@ -52,6 +62,8 @@ function buildLeadFilter(url,actor){
   const where=[];
   const binds=[];
   if(status){where.push("status = ?");binds.push(status)}
+  if(createdFrom){where.push("created_at >= datetime(?)");binds.push(createdFrom)}
+  if(createdTo){where.push("created_at < datetime(?,'+1 day')");binds.push(createdTo)}
   if(assigned==="mine"){where.push("assigned_to = ?");binds.push(actor.email)}
   if(assigned==="unassigned"){where.push("assigned_to = ''")}
   if(attention==="unassigned_new")where.push("status = 'new' AND assigned_to = ''");
@@ -128,6 +140,8 @@ async function exportLeads(request,url,env,actor){
     due:url.searchParams.get("due")||"",
     assigned:url.searchParams.get("assigned")||"",
     attention:url.searchParams.get("attention")||"",
+    createdFrom:url.searchParams.get("created_from")||"",
+    createdTo:url.searchParams.get("created_to")||"",
     searched:Boolean((url.searchParams.get("q")||"").trim())
   };
   const logged=await env.DB.prepare(

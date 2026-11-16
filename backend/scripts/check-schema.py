@@ -350,6 +350,16 @@ class MigrationTests(unittest.TestCase):
         self.db.execute("UPDATE leads SET status='in_progress' WHERE id='lead-1'")
         self.assertEqual(self.db.execute(stale_sql).fetchone()[0], 0)
 
+    def test_created_date_filter_includes_entire_last_day(self):
+        self.db.execute("UPDATE leads SET created_at='2024-02-29 23:59:59' WHERE id='lead-1'")
+        sql = ("SELECT COUNT(*) FROM leads WHERE created_at >= datetime(?) "
+               "AND created_at < datetime(?,'+1 day')")
+        self.assertEqual(self.db.execute(sql, ("2024-02-29","2024-02-29")).fetchone()[0],1)
+        self.assertEqual(self.db.execute(sql, ("2024-03-01","2024-03-01")).fetchone()[0],0)
+        self.db.execute("UPDATE leads SET created_at='2024-03-01 00:00:00' WHERE id='lead-1'")
+        self.assertEqual(self.db.execute(sql, ("2024-02-29","2024-02-29")).fetchone()[0],0)
+        self.assertEqual(self.db.execute(sql, ("2024-03-01","2024-03-01")).fetchone()[0],1)
+
     def test_invalid_branch_count_rejected(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute(

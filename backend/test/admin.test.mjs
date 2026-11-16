@@ -431,7 +431,7 @@ test("administrator export quotes CSV, neutralizes spreadsheet formulas and writ
  assert.equal(db.statements[1].args[1],ADMIN);
  assert.equal(db.statements[1].args[2],2);
  const auditFilters=JSON.parse(db.statements[1].args[3]);
- assert.deepEqual(auditFilters,{status:"new",due:"",assigned:"mine",attention:"",searched:true});
+ assert.deepEqual(auditFilters,{status:"new",due:"",assigned:"mine",attention:"",createdFrom:"",createdTo:"",searched:true});
  assert.ok(!db.statements[1].args[3].includes("needle"),"Search values must not be logged");
 });
 
@@ -848,4 +848,52 @@ test("CRM export rejects HTML login pages instead of downloading them as CSV",()
  assert.ok(adminApp.includes("includes('text/csv')"));
  assert.ok(adminApp.includes("expireSession();"));
  assert.ok(adminApp.includes("button.disabled=sessionEnded"));
+});
+
+test("CRM created date filters are bounded using UTC full-day, parameterized SQL",async()=>{
+ const token=await sign(ADMIN),calls=[];
+ const db={prepare(sql){const query={sql,args:[]};calls.push(query);return {
+  bind(...args){query.args=args;return this},
+  async all(){return {results:[]}},async first(){return {total:0}}
+ }}};
+ const response=await worker.fetch(request("/admin/api/leads?created_from=2024-02-29&created_to=2024-03-01&limit=10","GET",token),env(db));
+ assert.equal(response.status,200);
+ assert.match(calls[0].sql,/created_at >= datetime\(\?\)/);
+ assert.match(calls[0].sql,/created_at < datetime\(\?,'\+1 day'\)/);
+ assert.deepEqual(calls[0].args,["2024-02-29","2024-03-01",10,0]);
+ assert.deepEqual(calls[1].args,["2024-02-29","2024-03-01"]);
+ assert.ok(!calls[0].sql.includes("2024-02-29"));
+});
+test("CRM rejects impossible or reversed date filters before accessing D1",async()=>{
+ const token=await sign(ADMIN);let queried=false;
+ const db={prepare(){queried=true;throw Error("Invalid query reached D1")}};
+ for(const q of ["created_from=2025-02-29","created_to=2026-04-31",
+  "created_from=2026-12-01&created_to=2026-11-01","created_from=2026-1-01",
+  "created_from=2019-12-31","created_to=2026-12-32"]){
+   for(const route of ["/admin/api/leads?","/admin/api/leads/export.csv?"]){
+     const response=await worker.fetch(request(route+q,"GET",token),env(db));
+     assert.equal(response.status,422,route+q);
+   }
+ }
+ assert.equal(queried,false);
+});
+test("CRM dated CSV export records range, never full-text search",async()=>{
+ const token=await sign(ADMIN),calls=[];
+ const db={prepare(sql){const query={sql,args:[]};calls.push(query);return {
+  bind(...args){query.args=args;return this},
+  async all(){return {results:[]}},async run(){return {meta:{changes:1}}}
+ }}};
+ const response=await worker.fetch(request(
+  "/admin/api/leads/export.csv?created_from=2026-11-01&created_to=2026-11-30&q=private","GET",token),env(db));
+ assert.equal(response.status,200);
+ const audit=JSON.parse(calls[1].args[3]);
+ assert.equal(audit.createdFrom,"2026-11-01");
+ assert.equal(audit.createdTo,"2026-11-30");
+ assert.ok(!calls[1].args[3].includes("private"));
+});
+test("CRM date inputs are bound to list and export filters",()=>{
+ assert.match(adminPage,/id="created-from"/);
+ assert.match(adminPage,/id="created-to"/);
+ assert.equal((adminApp.match(/params\.set\('created_from',from\)/g)||[]).length,2);
+ assert.equal((adminApp.match(/params\.set\('created_to',to\)/g)||[]).length,2);
 });

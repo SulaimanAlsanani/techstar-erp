@@ -146,6 +146,8 @@
        filters.due?('الموعد: '+filters.due):'',
        filters.assigned?('المسند: '+filters.assigned):'',
        filters.attention?('الأولوية: '+filters.attention):'',
+       filters.createdFrom?('من: '+filters.createdFrom):'',
+       filters.createdTo?('إلى: '+filters.createdTo):'',
        filters.searched?'مع بحث':''
      ].filter(Boolean).join(' · ')||'دون مرشحات';
      const row=node('tr');
@@ -165,6 +167,10 @@
    const status=$('status-filter').value,q=$('search').value.trim();
    const due=$('due-filter').value,assigned=$('assigned-filter').value;
    const attention=$('attention-filter').value;
+   const from=$('created-from').value,to=$('created-to').value;
+   if(from&&to&&from>to){message('تاريخ البداية يجب ألا يتجاوز تاريخ النهاية.',true);return}
+   if(from)params.set('created_from',from);
+   if(to)params.set('created_to',to);
    if(attention)params.set('attention',attention);
    if(status)params.set('status',status);
    if(due)params.set('due',due);
@@ -395,6 +401,10 @@
      const status=$('status-filter').value,q=$('search').value.trim();
      const due=$('due-filter').value,assigned=$('assigned-filter').value;
      const attention=$('attention-filter').value;
+     const from=$('created-from').value,to=$('created-to').value;
+     if(from&&to&&from>to){message('تاريخ البداية يجب ألا يتجاوز تاريخ النهاية.',true);return}
+     if(from)params.set('created_from',from);
+     if(to)params.set('created_to',to);
      if(attention)params.set('attention',attention);
      if(status)params.set('status',status);
      if(q)params.set('q',q);
