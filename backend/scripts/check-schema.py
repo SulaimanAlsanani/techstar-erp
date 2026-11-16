@@ -336,6 +336,20 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(parsed["completion"]["dueAt"], due)
         self.assertEqual(parsed["note"]["text"], "ملاحظة داخلية")
 
+    def test_crm_new_lead_attention_queries(self):
+        self.db.execute(
+            "UPDATE leads SET status='new', assigned_to='', created_at=datetime('now','-2 days') WHERE id='lead-1'"
+        )
+        unassigned_sql = "SELECT COUNT(*) FROM leads WHERE status='new' AND assigned_to=''"
+        stale_sql = "SELECT COUNT(*) FROM leads WHERE status='new' AND created_at < datetime('now','-24 hours')"
+        self.assertEqual(self.db.execute(unassigned_sql).fetchone()[0], 1)
+        self.assertEqual(self.db.execute(stale_sql).fetchone()[0], 1)
+        self.db.execute("UPDATE leads SET assigned_to='staff@example.test' WHERE id='lead-1'")
+        self.assertEqual(self.db.execute(unassigned_sql).fetchone()[0], 0)
+        self.assertEqual(self.db.execute(stale_sql).fetchone()[0], 1)
+        self.db.execute("UPDATE leads SET status='in_progress' WHERE id='lead-1'")
+        self.assertEqual(self.db.execute(stale_sql).fetchone()[0], 0)
+
     def test_invalid_branch_count_rejected(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute(

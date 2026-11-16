@@ -43,7 +43,9 @@ function buildLeadFilter(url,actor){
   const q=(url.searchParams.get("q")||"").trim();
   const due=url.searchParams.get("due")||"";
   const assigned=url.searchParams.get("assigned")||"";
-  if((due&&!["overdue","upcoming7","scheduled","unscheduled"].includes(due))||
+  const attention=url.searchParams.get("attention")||"";
+  if((attention&&!["unassigned_new","stale_new"].includes(attention))||
+     (due&&!["overdue","upcoming7","scheduled","unscheduled"].includes(due))||
      (assigned&&!["mine","unassigned"].includes(assigned))||
      (status&&!STATUSES.includes(status))||q.length>80)
     return null;
@@ -52,6 +54,8 @@ function buildLeadFilter(url,actor){
   if(status){where.push("status = ?");binds.push(status)}
   if(assigned==="mine"){where.push("assigned_to = ?");binds.push(actor.email)}
   if(assigned==="unassigned"){where.push("assigned_to = ''")}
+  if(attention==="unassigned_new")where.push("status = 'new' AND assigned_to = ''");
+  if(attention==="stale_new")where.push("status = 'new' AND created_at < datetime('now','-24 hours')");
   if(due==="scheduled")where.push("follow_up_at <> ''");
   if(due==="unscheduled")where.push("follow_up_at = ''");
   if(due==="overdue")where.push(
@@ -117,6 +121,7 @@ async function exportLeads(request,url,env,actor){
     status:url.searchParams.get("status")||"",
     due:url.searchParams.get("due")||"",
     assigned:url.searchParams.get("assigned")||"",
+    attention:url.searchParams.get("attention")||"",
     searched:Boolean((url.searchParams.get("q")||"").trim())
   };
   const logged=await env.DB.prepare(
@@ -254,9 +259,16 @@ async function summary(db){
     "follow_up_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now') "+
     "AND follow_up_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','+7 days')"
   ).first();
+  const unassignedNew=await db.prepare(
+    "SELECT COUNT(*) AS total FROM leads WHERE status = 'new' AND assigned_to = ''"
+  ).first();
+  const staleNew=await db.prepare(
+    "SELECT COUNT(*) AS total FROM leads WHERE status = 'new' AND created_at < datetime('now','-24 hours')"
+  ).first();
   return json({
     statuses:totals,total:Object.values(totals).reduce((a,b)=>a+b,0),
-    overdue:Number(overdue?.total)||0,upcoming7Days:Number(upcoming?.total)||0
+    overdue:Number(overdue?.total)||0,upcoming7Days:Number(upcoming?.total)||0,
+    unassignedNew:Number(unassignedNew?.total)||0,staleNew:Number(staleNew?.total)||0
   });
 }
 async function changeStatus(request,url,id,env,actor){

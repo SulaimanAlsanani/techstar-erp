@@ -49,16 +49,22 @@
  async function loadSummary(){
    const result=await api('/summary');
    const wrap=$('statistics');wrap.replaceChildren();
-   for(const [value,label,filter] of [
-     [result.overdue??0,'متابعات متأخرة','overdue'],
-     [result.upcoming7Days??0,'متابعات خلال 7 أيام','upcoming7']
+   for(const [value,label,queryKey,filter] of [
+     [result.overdue??0,'متابعات متأخرة','due','overdue'],
+     [result.upcoming7Days??0,'متابعات خلال 7 أيام','due','upcoming7'],
+     [result.unassignedNew??0,'طلبات جديدة غير مسندة','attention','unassigned_new'],
+     [result.staleNew??0,'طلبات جديدة منذ أكثر من 24 ساعة','attention','stale_new']
    ]){
      const card=node('button',undefined,'stat stat-action');
      card.type='button';
      card.setAttribute('aria-label',label+' — '+value+' — عرض الطلبات');
      card.append(node('strong',value),node('span',label+' · عرض الطلبات'));
      card.addEventListener('click',()=>{
-       $('due-filter').value=filter;
+       $('due-filter').value='';
+       $('attention-filter').value='';
+       $('status-filter').value='';
+       $('assigned-filter').value='';
+       $(queryKey+'-filter').value=filter;
        offset=0;
        loadLeads();
        $('filters').scrollIntoView({behavior:'smooth',block:'start'});
@@ -100,6 +106,7 @@
        filters.status?('الحالة: '+(statuses[filters.status]||filters.status)):'',
        filters.due?('الموعد: '+filters.due):'',
        filters.assigned?('المسند: '+filters.assigned):'',
+       filters.attention?('الأولوية: '+filters.attention):'',
        filters.searched?'مع بحث':''
      ].filter(Boolean).join(' · ')||'دون مرشحات';
      const row=node('tr');
@@ -118,6 +125,8 @@
    const params=new URLSearchParams({offset:String(offset),limit:String(limit)});
    const status=$('status-filter').value,q=$('search').value.trim();
    const due=$('due-filter').value,assigned=$('assigned-filter').value;
+   const attention=$('attention-filter').value;
+   if(attention)params.set('attention',attention);
    if(status)params.set('status',status);
    if(due)params.set('due',due);
    if(assigned)params.set('assigned',assigned);
@@ -346,6 +355,8 @@
      const params=new URLSearchParams();
      const status=$('status-filter').value,q=$('search').value.trim();
      const due=$('due-filter').value,assigned=$('assigned-filter').value;
+     const attention=$('attention-filter').value;
+     if(attention)params.set('attention',attention);
      if(status)params.set('status',status);
      if(q)params.set('q',q);
      if(due)params.set('due',due);

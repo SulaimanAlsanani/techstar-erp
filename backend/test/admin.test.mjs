@@ -715,3 +715,40 @@ test("CRM activity UI renders untrusted text through DOM textContent",()=>{
  assert.match(adminApp,/event.kind==='completion'/);
  assert.ok(adminApp.includes("node('p',desc,'note-text')"));
 });
+
+
+test("CRM priority queues use fixed SQL and reject unsupported filters",async()=>{
+ const token=await sign(ADMIN);
+ const cases=[
+   ["unassigned_new", "status = 'new' AND assigned_to = ''"],
+   ["stale_new", "status = 'new' AND created_at < datetime('now','-24 hours')"]
+ ];
+ for(const [attention,expected] of cases){
+   const sql=[];
+   const db={prepare(statement){
+     sql.push(statement);
+     return {bind(){return this},async all(){return {results:[]}},
+       async first(){return {total:0}}};
+   }};
+   const response=await worker.fetch(request(
+     "/admin/api/leads?attention="+attention,"GET",token),env(db));
+   assert.equal(response.status,200);
+   assert.ok(sql[0].includes(expected));
+   assert.ok(sql[1].includes(expected));
+   assert.ok(sql[0].includes("LIMIT ? OFFSET ?"),"Lead search must remain bounded");
+ }
+ let queried=false;
+ const db={prepare(){queried=true;throw Error("Invalid filter reached database")}};
+ const invalid=await worker.fetch(request(
+   "/admin/api/leads?attention=all_customers","GET",token),env(db));
+ assert.equal(invalid.status,422);
+ assert.equal(queried,false);
+});
+
+test("CRM attention metrics are accessible from the dashboard and CSV filters",()=>{
+ assert.match(adminPage,/id="attention-filter"/);
+ assert.match(adminPage,/value="stale_new"/);
+ assert.match(adminApp,/result\.unassignedNew/);
+ assert.match(adminApp,/result\.staleNew/);
+ assert.match(adminApp,/params\.set\('attention',attention\)/);
+});
