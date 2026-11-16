@@ -64,6 +64,15 @@ jobs:
         run: npx wrangler d1 migrations apply techstar-leads-staging --remote --config .wrangler-staging.toml
       - name: Deploy staging Worker (no production site changes)
         run: npx wrangler deploy --config .wrangler-staging.toml
+      - name: Verify deployed staging over HTTPS (when URL configured)
+        env:
+          TECHSTAR_STAGING_WORKER_URL: ${{ vars.TECHSTAR_STAGING_WORKER_URL }}
+        run: |
+          if [ -z "$TECHSTAR_STAGING_WORKER_URL" ]; then
+            echo "::warning::Staging deployed but live verification not performed; set TECHSTAR_STAGING_WORKER_URL in cloudflare-staging environment"
+          else
+            node scripts/smoke-staging-worker.mjs "$TECHSTAR_STAGING_WORKER_URL"
+          fi
       - name: Show safe release summary
         run: |
           echo "Staging Worker: techstar-public-api-staging"
