@@ -40,7 +40,7 @@ function formatLead(r,details=false){
 }
 function validCalendarDate(value){
   if(value==="")return true;
-  if(!/^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value))return false;
+  if(!/^20[2-9]\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value))return false;
   const date=new Date(value+"T00:00:00Z");
   return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;
 }
