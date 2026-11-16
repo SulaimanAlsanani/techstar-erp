@@ -410,7 +410,12 @@
        if(response.status===403)throw Error('لا تملك صلاحية تصدير بيانات العملاء.');
        throw Error('تعذر تصدير البيانات ('+response.status+').');
      }
+     if(!(response.headers?.get('content-type')||'').toLowerCase().includes('text/csv')){
+       expireSession();
+       throw Error('استجابة التصدير غير صحيحة؛ أُخفيت بيانات العملاء ويجب إعادة تسجيل الدخول.');
+     }
      const blob=await response.blob();
+     if(sessionEnded)return;
      const url=URL.createObjectURL(blob);
      const link=document.createElement('a');
      link.href=url;link.download='techstar-crm-leads.csv';
@@ -419,7 +424,7 @@
      message('تم إعداد ملف CSV وتسجيل عملية التصدير.');
      loadExportHistory().catch(()=>{});
    }catch(e){message(error(e),true)}
-   finally{button.disabled=false}
+   finally{button.disabled=sessionEnded}
  }
  async function init(){
    $('close-detail').addEventListener('click',()=>$('detail').close());

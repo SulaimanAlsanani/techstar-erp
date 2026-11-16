@@ -843,3 +843,9 @@ test("CRM clears customer details on expired Access session and rejects late res
  assert.match(el("identity").textContent,/انتهت الجلسة/);
  assert.match(el("message").textContent,/أُخفيت بيانات العملاء/);
 });
+
+test("CRM export rejects HTML login pages instead of downloading them as CSV",()=>{
+ assert.ok(adminApp.includes("includes('text/csv')"));
+ assert.ok(adminApp.includes("expireSession();"));
+ assert.ok(adminApp.includes("button.disabled=sessionEnded"));
+});
