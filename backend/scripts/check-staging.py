@@ -39,6 +39,9 @@ def validate(config: dict) -> tuple[list[str], list[str]]:
         db = bindings[0]
         if db.get("database_name") not in ("techstar-leads", "techstar-leads-staging"):
             problems.append("D1 database_name must match techstar-leads")
+        expected_db = ("techstar-leads-staging" if config.get("name") == "techstar-public-api-staging" else "techstar-leads")
+        if db.get("database_name") != expected_db:
+            problems.append("Worker and D1 database must belong to the same environment")
         if db.get("migrations_dir") != "migrations":
             problems.append("D1 migrations_dir must be migrations")
         db_id = str(db.get("database_id", ""))
