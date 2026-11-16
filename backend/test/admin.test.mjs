@@ -431,7 +431,7 @@ test("administrator export quotes CSV, neutralizes spreadsheet formulas and writ
  assert.equal(db.statements[1].args[1],ADMIN);
  assert.equal(db.statements[1].args[2],2);
  const auditFilters=JSON.parse(db.statements[1].args[3]);
- assert.deepEqual(auditFilters,{status:"new",due:"",assigned:"mine",searched:true});
+ assert.deepEqual(auditFilters,{status:"new",due:"",assigned:"mine",attention:"",searched:true});
  assert.ok(!db.statements[1].args[3].includes("needle"),"Search values must not be logged");
 });
 
