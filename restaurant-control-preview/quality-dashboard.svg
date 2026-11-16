@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="780" viewBox="0 0 1280 780" role="img" aria-label="معاينة تخطيطية للوحة رقابة جودة المطاعم">
+<defs><linearGradient id="hero" x1="0" x2="1"><stop stop-color="#192734"/><stop offset="1" stop-color="#28546b"/></linearGradient><style>
+text{font-family:Tahoma,Arial,sans-serif;fill:#192734} .ar{direction:rtl;unicode-bidi:plaintext;text-anchor:end} .small{font-size:17px;fill:#6c8090} .tiny{font-size:15px;fill:#77909f} .heading{font-weight:bold;font-size:25px} .label{font-size:20px} .white{fill:#fff} .light{fill:#d2e3ea} .st{fill:#42b7d8} .panel{fill:#fff;stroke:#e2eaee;stroke-width:1.3} 
+</style></defs>
+<rect width="1280" height="780" fill="#f5f8fa"/>
+<rect width="246" height="780" fill="#192734"/>
+<rect x="27" y="33" width="55" height="55" rx="12" fill="#42b7d8"/><text x="55" y="72" text-anchor="middle" font-size="33" font-weight="bold">Q</text>
+<text x="100" y="57" fill="#fff" font-size="20" font-weight="bold">Restaurant</text><text x="100" y="79" fill="#b8cbd7" font-size="16">Quality Control</text>
+<rect x="22" y="144" width="202" height="49" rx="10" fill="#2e4e60"/><text class="ar white label" x="205" y="177">لوحة الرقابة</text>
+<text class="ar light label" x="205" y="242">فحوص الجودة</text><text class="ar light label" x="205" y="303">المخالفات والمعالجة</text><text class="ar light label" x="205" y="364">الاتجاهات والتقارير</text>
+<text x="26" y="731" font-size="14" fill="#a6bfcb">Static preview only</text>
+<text class="ar heading" x="1235" y="59">منصة الرقابة وقياس جودة المطاعم</text>
+<rect x="288" y="84" width="945" height="148" rx="18" fill="url(#hero)"/>
+<text class="ar white" font-size="30" font-weight="bold" x="1195" y="135">نظرة شاملة على جودة الفروع</text>
+<text class="ar light" font-size="21" x="1195" y="178">المؤشرات الحقيقية تظهر بعد الاتصال بالنظام والتحقق من صلاحيات المستخدم</text>
+<rect x="1080" y="195" width="123" height="23" rx="11" fill="#33617b"/><text class="ar white" font-size="14" x="1192" y="211">معاينة تصميمية</text>
+<rect class="panel" x="288" y="260" width="224" height="156" rx="14"/>
+<rect class="panel" x="528" y="260" width="224" height="156" rx="14"/>
+<rect class="panel" x="768" y="260" width="224" height="156" rx="14"/>
+<rect class="panel" x="1008" y="260" width="224" height="156" rx="14"/>
+<rect x="309" y="277" width="38" height="4" rx="2" fill="#42b7d8"/>
+<rect x="549" y="277" width="38" height="4" rx="2" fill="#42b7d8"/>
+<rect x="789" y="277" width="38" height="4" rx="2" fill="#42b7d8"/>
+<rect x="1029" y="277" width="38" height="4" rx="2" fill="#42b7d8"/>
+<text class="ar small" x="1210" y="317">الفروع ضمن الصلاحية</text>
+<text class="ar small" x="971" y="317">الدرجة الموزونة</text>
+<text class="ar small" x="732" y="317">مخالفات حرجة</text>
+<text class="ar small" x="493" y="317">رفض معالجة متكرر</text>
+<text class="ar" x="1210" y="370" font-size="41" font-weight="bold">—</text>
+<text class="ar" x="971" y="370" font-size="41" font-weight="bold">—</text>
+<text class="ar" x="732" y="370" font-size="41" font-weight="bold">—</text>
+<text class="ar" x="493" y="370" font-size="41" font-weight="bold">—</text>
+<rect class="panel" x="288" y="444" width="450" height="261" rx="15"/>
+<rect class="panel" x="752" y="444" width="480" height="261" rx="15"/>
+<text class="ar heading" font-size="23" x="1212" y="484">تنبيهات الجودة</text>
+<text class="ar heading" font-size="23" x="719" y="484">مقارنة الفروع</text>
+<rect x="770" y="503" width="444" height="43" rx="6" fill="#f4f8fa"/>
+<text class="ar small" x="1193" y="531">المخالفة</text><text class="ar small" x="1000" y="531">الحالة</text><text class="ar small" x="855" y="531">المتابعة</text>
+<text class="ar tiny" x="1195" y="594">لا توجد بيانات تشغيلية</text><text class="ar tiny" x="1195" y="621">التنبيهات تُعرض بعد تسجيل الدخول</text>
+<rect x="306" y="503" width="414" height="43" rx="6" fill="#f4f8fa"/>
+<text class="ar small" x="704" y="531">الفرع</text><text class="ar small" x="552" y="531">النتيجة</text><text class="ar small" x="425" y="531">الملاحظات</text>
+<text class="ar tiny" x="703" y="594">لا توجد نتائج فحوص حقيقية</text>
+<rect x="289" y="730" width="944" height="32" rx="8" fill="#e8f4fa"/>
+<text class="ar" x="1212" y="752" fill="#226e95" font-size="17">معاينة ثابتة فقط — لا تستخدم بيانات مطاعم حقيقية ولا تدعم تسجيل الدخول</text>
+</svg>

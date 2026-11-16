@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>معاينة Restaurant Control &amp; Quality</title>
+<meta name="robots" content="noindex,nofollow"><meta name="description" content="معاينة ثابتة للرقابة وقياس جودة المطاعم، بلا بيانات تشغيلية">
+<style>
+:root{--navy:#192734;--sky:#42b7d8;--ink:#233747;--bg:#f5f8fa;--muted:#728392;--line:#e1e9ee}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.8 Tahoma,"Segoe UI",sans-serif}
+button{font:inherit;cursor:pointer}a{color:#196c91}
+.layout{max-width:1440px;margin:auto;display:grid;grid-template-columns:238px minmax(0,1fr);min-height:100vh}
+aside{background:var(--navy);color:#d9e7ef;padding:26px 18px}
+.brand{display:flex;align-items:center;gap:12px;font-size:17px;font-weight:bold;color:#fff;margin:0 0 40px}
+.logo{background:var(--sky);color:var(--navy);padding:6px 12px;border-radius:12px;font-size:23px}
+nav{display:grid;gap:8px}nav button{background:transparent;border:0;color:#ccdae3;text-align:right;padding:12px 14px;border-radius:9px}nav button[aria-selected=true],nav button:hover{background:#2d4a5c;color:#fff}
+aside small{display:block;color:#95b2c2;margin-top:38px}
+main{padding:34px clamp(16px,4vw,52px)}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+h1{font-size:27px;margin:0}h2{font-size:19px;margin:0 0 14px}h3{font-size:15px;margin:0}
+.muted{color:var(--muted)}.tag{border:1px solid #cbe3f0;background:#e8f5fa;color:#236d92;padding:6px 12px;border-radius:999px;font-size:12px}
+.hero{background:linear-gradient(110deg,#192734,#29576e);color:#fff;border-radius:16px;padding:28px 30px;margin-bottom:26px}
+.hero p{color:#d5e7ef;margin:5px 0 0}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin-bottom:22px}
+.card,.panel{background:#fff;border:1px solid var(--line);border-radius:13px;padding:20px}
+.card{border-top:3px solid var(--sky)}.card strong{font-size:25px;display:block;line-height:1.7}
+.card p{margin:0;color:var(--muted);font-size:12px}
+.two{display:grid;grid-template-columns:1.2fr 1fr;gap:15px}
+.mock{background:#fafcfd;border:1px dashed #c7d8e2;border-radius:10px;padding:28px;text-align:center;color:#778d9c;margin-top:12px;min-height:115px}
+table{width:100%;border-collapse:collapse;text-align:right;font-size:12px}
+th,td{padding:13px;border-bottom:1px solid #edf1f4}th{background:#f9fbfc;color:#647785}
+.action{display:inline-block;padding:8px 13px;border:1px solid #b7dbe9;border-radius:8px;color:#247b9e;background:#eff8fb;text-decoration:none}
+section[hidden]{display:none}
+.notice{margin-top:26px;border:1px solid #d9eaf2;background:#f0f8fb;padding:17px;border-radius:11px}
+.notice strong{display:block;margin-bottom:4px}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.pill{display:inline-block;border:1px solid var(--line);padding:4px 10px;border-radius:999px;background:#fafcfd}
+footer{margin-top:36px;color:#81929d;font-size:11px}
+@media(max-width:1050px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}} 
+@media(max-width:780px){.layout{display:block}aside{padding:15px}aside .brand{margin-bottom:12px}nav{grid-template-columns:repeat(2,1fr)}aside small{margin:12px 0 0}.two{grid-template-columns:1fr}main{padding:20px}.cards{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:440px){.cards{grid-template-columns:1fr}h1{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+<div class="brand"><span class="logo">Q</span><div>Restaurant Quality<small style="margin:0">الرقابة التشغيلية</small></div></div>
+<nav role="tablist" aria-label="التنقل بين وحدات المعاينة">
+<button type="button" role="tab" aria-selected="true" aria-controls="dashboard" data-show="dashboard">◈ لوحة الرقابة</button>
+<button type="button" role="tab" aria-selected="false" aria-controls="inspections" data-show="inspections">▤ فحوص الجودة</button>
+<button type="button" role="tab" aria-selected="false" aria-controls="findings" data-show="findings">⚑ الإجراءات التصحيحية</button>
+<button type="button" role="tab" aria-selected="false" aria-controls="trends" data-show="trends">▥ الاتجاهات والتقارير</button>
+</nav>
+<small>واجهة استعراضية ثابتة — لا تتصل بقاعدة بيانات ولا تنفّذ تغييرات</small>
+</aside>
+<main>
+<header><div><p class="muted" style="margin:0">Restaurant Control &amp; Quality</p><h1>منصة الرقابة وقياس جودة المطاعم</h1></div><span class="tag">معاينة تصميمية فقط</span></header>
+<section id="dashboard" role="tabpanel">
+<div class="hero"><h2>الرؤية التشغيلية لجميع الفروع</h2><p>مؤشرات موثقة من الفحوصات والمخالفات؛ لا تُعرض أرقام إلا من بيانات فعلية بعد تسجيل الدخول.</p></div>
+<div class="cards">
+<div class="card"><p>الفروع ضمن الصلاحية</p><strong>—</strong><p>يتطلب اتصالًا بالخادم</p></div>
+<div class="card"><p>الدرجة الموزونة</p><strong>—</strong><p>غير قابلة للاحتساب في المعاينة</p></div>
+<div class="card"><p>مخالفات حرجة مفتوحة</p><strong>—</strong><p>غير متصل بسجل المخالفات</p></div>
+<div class="card"><p>رفض معالجة متكرر</p><strong>—</strong><p>يعتمد على قرارات المراجعة</p></div>
+</div>
+<div class="two"><div class="panel"><h3>التنبيهات ذات الأولوية</h3><div class="mock">حرجة ومتأخرة · حرجة · متأخرة · رفض متكرر<br>لا توجد بيانات تشغيلية في المعاينة</div></div><div class="panel"><h3>مقارنة الفروع</h3><div class="mock">تظهر هنا النتائج حسب صلاحيات كل مستخدم<br>لا تُستخدم بيانات افتراضية</div></div></div>
+</section>
+<section id="inspections" role="tabpanel" hidden>
+<div class="hero"><h2>فحوص الجودة وقوائم التدقيق</h2><p>قوائم موزونة، بنود حرجة، نتائج موثقة وصور أدلة حسب الصلاحية.</p></div>
+<div class="panel"><div class="pills"><span class="pill">قوائم تدقيق معتمدة</span><span class="pill">إصدارات مرقمة</span><span class="pill">ملاحظات تفتيش</span><span class="pill">توثيق الأدلة</span></div><table><thead><tr><th>البند</th><th>طريقة التقييم</th><th>الحالة</th></tr></thead><tbody><tr><td>درجات حرارة الحفظ</td><td>مطابق / غير مطابق / غير منطبق</td><td>يتطلب فحصًا فعليًا</td></tr><tr><td>سلامة تخزين المواد</td><td>نتيجة وأدلة مراجعة</td><td>يتطلب فحصًا فعليًا</td></tr><tr><td>نظافة أسطح العمل</td><td>نتيجة وأدلة مراجعة</td><td>يتطلب فحصًا فعليًا</td></tr></tbody></table></div>
+</section>
+<section id="findings" role="tabpanel" hidden>
+<div class="hero"><h2>المخالفات والإجراءات التصحيحية</h2><p>إسناد المسؤوليات، تقديم أدلة جديدة، ثم تحقق مستقل قبل إغلاق المخالفة.</p></div>
+<div class="cards"><div class="card"><p>مخالفات مفتوحة</p><strong>—</strong></div><div class="card"><p>بانتظار التحقق</p><strong>—</strong></div><div class="card"><p>تحتاج إعادة معالجة</p><strong>—</strong></div><div class="card"><p>رفض مرتين فأكثر</p><strong>—</strong></div></div>
+<div class="panel"><h3>دورة المعالجة الموثقة</h3><div class="pills" style="margin-top:16px"><span class="pill">تسجيل مخالفة</span><span class="pill">إسناد مسؤول</span><span class="pill">رفع دليل خاص</span><span class="pill">تحقق مستقل</span><span class="pill">إغلاق أو إعادة معالجة</span></div><div class="mock">سجل الأدلة والقرارات محفوظ للمراجعة<br>المعاينة لا تسمح بتسجيل مخالفات أو رفع ملفات</div></div>
+</section>
+<section id="trends" role="tabpanel" hidden>
+<div class="hero"><h2>الاتجاهات ومراقبة التحسن</h2><p>تحليل النتائج عبر الأيام والفروع ورصد البنود المتكررة دون تغيير النظام التشغيلي.</p></div>
+<div class="two"><div class="panel"><h3>درجات الجودة خلال الفترة</h3><div class="mock">لا يُرسم اتجاه دون نتائج فحوص فعلية</div></div><div class="panel"><h3>المخالفات المتكررة</h3><div class="mock">يُحدد التكرار من سجل الفحوصات والأحداث</div></div></div>
+</section>
+<div class="notice"><strong>تنبيه — هذه ليست بيئة إنتاج</strong>معاينة مستقلة لتوزيع الواجهات فقط. لا تعرض بيانات حقيقية، ولا تدعم تسجيل الدخول أو حفظ الفحوصات أو إرسال التنبيهات. النظام التشغيلي يحتاج Laravel وPostgreSQL واختبارات قبول.</div>
+<footer>Restaurant ERP · Control &amp; Quality · Static preview</footer>
+</main></div>
+<script>
+(function(){const tabs=[...document.querySelectorAll('[role="tab"][data-show]')];const panels=[...document.querySelectorAll('[role="tabpanel"]')];tabs.forEach(tab=>tab.addEventListener('click',()=>{const id=tab.dataset.show;tabs.forEach(t=>t.setAttribute('aria-selected',String(t===tab)));panels.forEach(p=>{p.hidden=p.id!==id})}));})();
+</script>
+</body></html>
