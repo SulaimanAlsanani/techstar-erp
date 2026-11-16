@@ -752,3 +752,43 @@ test("CRM attention metrics are accessible from the dashboard and CSV filters",(
  assert.match(adminApp,/result\.staleNew/);
  assert.match(adminApp,/params\.set\('attention',attention\)/);
 });
+
+
+test("CRM urgency queues sort predictably by due time, not newest creation",async()=>{
+ const token=await sign(ADMIN);
+ for(const [query,order] of [
+   ["due=overdue","ORDER BY follow_up_at ASC,id ASC"],
+   ["due=upcoming7","ORDER BY follow_up_at ASC,id ASC"],
+   ["attention=stale_new","ORDER BY created_at ASC,id ASC"],
+   ["attention=unassigned_new","ORDER BY created_at DESC,id DESC"],
+   ["","ORDER BY created_at DESC,id DESC"]
+ ]){
+   const seen=[];
+   const db={prepare(sql){
+     seen.push(sql);
+     return {bind(){return this},async all(){return {results:[]}},
+       async first(){return {total:0}}};
+   }};
+   const path="/admin/api/leads"+(query?"?"+query:"");
+   const response=await worker.fetch(request(path,"GET",token),env(db));
+   assert.equal(response.status,200);
+   assert.ok(seen[0].includes(order),query+" incorrectly ordered leads");
+   assert.equal(seen[0].includes("LIMIT ? OFFSET ?"),true);
+   assert.equal(seen[1].includes("COUNT(*) AS total"),true);
+ }
+});
+
+test("Admin export uses same urgency sorting as visible lead list",async()=>{
+ const token=await sign(ADMIN);
+ const queries=[];
+ const db={prepare(sql){
+   queries.push(sql);
+   return {bind(){return this},async all(){return {results:[]}},
+     async run(){return {meta:{changes:1}}}};
+ }};
+ const result=await worker.fetch(request(
+   "/admin/api/leads/export.csv?due=overdue","GET",token),env(db));
+ assert.equal(result.status,200);
+ assert.ok(queries[0].includes("ORDER BY follow_up_at ASC,id ASC LIMIT 501"));
+ assert.match(queries[1],/INSERT INTO crm_export_audit/);
+});

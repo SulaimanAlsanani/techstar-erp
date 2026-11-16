@@ -73,7 +73,13 @@ function buildLeadFilter(url,actor){
     for(let i=0;i<5;i++)binds.push("%"+escaped+"%");
   }
   const sqlWhere=where.length?" WHERE "+where.join(" AND "):"";
-  return {sqlWhere,binds};
+  // Sorting expressions are fixed literals selected from validated filter values.
+  // Overdue and upcoming queues prioritize the earliest due dates.
+  // Stale new requests prioritize the oldest unhandled inquiries.
+  const sort=(due==="overdue"||due==="upcoming7")?
+    "follow_up_at ASC,id ASC":
+    attention==="stale_new"?"created_at ASC,id ASC":"created_at DESC,id DESC";
+  return {sqlWhere,binds,sort};
 }
 async function listLeads(url,db,actor){
   const rawLimit=url.searchParams.get("limit")||"20";
@@ -84,9 +90,9 @@ async function listLeads(url,db,actor){
   if(limit>50||offset>5000)return fail("invalid_filters",422);
   const filter=buildLeadFilter(url,actor);
   if(!filter)return fail("invalid_filters",422);
-  const {sqlWhere,binds}=filter;
+  const {sqlWhere,binds,sort}=filter;
   const list=await db.prepare("SELECT id,reference,name,business,package_id,status,branches,pos_count,created_at,updated_at,assigned_to,follow_up_at,revision FROM leads"+
-    sqlWhere+" ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?")
+    sqlWhere+" ORDER BY "+sort+" LIMIT ? OFFSET ?")
     .bind(...binds,limit,offset).all();
   const count=await db.prepare("SELECT COUNT(*) AS total FROM leads"+sqlWhere).bind(...binds).first();
   return json({items:(list.results||[]).map(x=>formatLead(x)),total:Number(count?.total||0),limit,offset});
@@ -112,7 +118,7 @@ async function exportLeads(request,url,env,actor){
   if(!filter)return fail("invalid_filters",422);
   const sql="SELECT "+EXPORT_COLUMNS.map(([column])=>column).join(",")+
     " FROM leads"+filter.sqlWhere+
-    " ORDER BY created_at DESC,id DESC LIMIT 501";
+    " ORDER BY "+filter.sort+" LIMIT 501";
   const found=await env.DB.prepare(sql).bind(...filter.binds).all();
   const records=found.results||[];
   if(records.length>500)return fail("export_limit_exceeded",413);
