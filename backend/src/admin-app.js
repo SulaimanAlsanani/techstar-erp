@@ -36,7 +36,7 @@
    $('export-csv')?.classList.add('hidden');
    $('export-audit-panel')?.classList.add('hidden');
    $('readiness-panel')?.classList.add('hidden');
-   for(const id of ['refresh','prev','next','export-csv'])
+   for(const id of ['refresh','prev','next','export-csv','last-7-days','last-30-days','clear-filters'])
      if($(id))$(id).disabled=true;
    $('page-label').textContent='—';
    $('identity').textContent='انتهت الجلسة — يلزم تسجيل الدخول من جديد';
@@ -436,6 +436,22 @@
    }catch(e){message(error(e),true)}
    finally{button.disabled=sessionEnded}
  }
+ function applyDatePreset(days){
+   if(sessionEnded)return;
+   const end=new Date();
+   const to=end.toISOString().slice(0,10);
+   end.setUTCDate(end.getUTCDate()-days+1);
+   $('created-from').value=end.toISOString().slice(0,10);
+   $('created-to').value=to;
+   offset=0;
+   loadLeads();
+ }
+ function clearFilters(){
+   if(sessionEnded)return;
+   $('filters').reset();
+   offset=0;
+   loadLeads();
+ }
  async function init(){
    $('close-detail').addEventListener('click',()=>$('detail').close());
    $('detail').addEventListener('close',()=>{current=null});
@@ -444,6 +460,9 @@
    $('complete-followup').addEventListener('click',completeFollowup);
    $('note-form').addEventListener('submit',saveNote);
    $('filters').addEventListener('submit',e=>{e.preventDefault();offset=0;loadLeads()});
+   $('last-7-days').addEventListener('click',()=>applyDatePreset(7));
+   $('last-30-days').addEventListener('click',()=>applyDatePreset(30));
+   $('clear-filters').addEventListener('click',clearFilters);
    $('refresh').addEventListener('click',()=>{loadSummary().catch(()=>{});loadLeads();loadExportHistory().catch(()=>{});loadSystemStatus().catch(()=>{});});
    $('export-csv').addEventListener('click',downloadCSV);
    $('prev').addEventListener('click',()=>{offset=Math.max(0,offset-limit);loadLeads()});

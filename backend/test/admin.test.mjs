@@ -897,3 +897,14 @@ test("CRM date inputs are bound to list and export filters",()=>{
  assert.equal((adminApp.match(/params\.set\('created_from',from\)/g)||[]).length,2);
  assert.equal((adminApp.match(/params\.set\('created_to',to\)/g)||[]).length,2);
 });
+
+test("CRM date presets use UTC calendar days and include a reset control",()=>{
+ for(const element of ["last-7-days","last-30-days","clear-filters"]){
+   assert.ok(adminPage.includes('id="'+element+'"'),element);
+ }
+ assert.match(adminApp,/end\.setUTCDate\(end\.getUTCDate\(\)-days\+1\)/);
+ assert.match(adminApp,/function clearFilters\(\)/);
+ assert.match(adminApp,/\$\('filters'\)\.reset\(\)/);
+ assert.match(adminApp,/applyDatePreset\(7\)/);
+ assert.match(adminApp,/applyDatePreset\(30\)/);
+});
