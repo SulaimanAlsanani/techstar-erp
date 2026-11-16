@@ -7,7 +7,7 @@
    quoted:['in_progress','won','lost','archived'],won:['archived','in_progress'],
    lost:['in_progress','archived'],archived:['in_progress']};
  const plans={basic:'الأساسية',bronze:'البرونزية',silver:'الفضية',gold:'الذهبية',platinum:'البلاتينية',diamond:'الألماسية'};
- let role='viewer',offset=0,total=0,current=null,sequence=0;
+ let role='viewer',offset=0,total=0,current=null,sequence=0,sessionEnded=false;
  const limit=20;
  const node=(tag,text,className)=>{
    const el=document.createElement(tag);
@@ -20,15 +20,51 @@
    $('message').textContent=text;
    $('message').classList.toggle('error',isError);
  };
+ function expireSession(){
+   if(sessionEnded)return;
+   sessionEnded=true;
+   sequence++; // Discard any pending lead list responses.
+   role='viewer';current=null;total=0;offset=0;
+   for(const id of [
+     'leads-body','statistics','readiness-checks','export-audit-body',
+     'details','audit','followup-audit','followup-completions',
+     'activity-timeline','note-list'
+   ])$(id)?.replaceChildren();
+   for(const id of ['note-text','assignee','followup-time','search'])
+     if($(id))$(id).value='';
+   if($('detail')?.open)$('detail').close();
+   $('export-csv')?.classList.add('hidden');
+   $('export-audit-panel')?.classList.add('hidden');
+   $('readiness-panel')?.classList.add('hidden');
+   for(const id of ['refresh','prev','next','export-csv'])
+     if($(id))$(id).disabled=true;
+   $('page-label').textContent='—';
+   $('identity').textContent='انتهت الجلسة — يلزم تسجيل الدخول من جديد';
+   message('انتهت جلسة Cloudflare Access. أُخفيت بيانات العملاء. أعد فتح لوحة CRM وسجّل الدخول.',true);
+ }
  async function api(path,options={}) {
-   const response=await fetch('/admin/api'+path,{
-     credentials:'same-origin',cache:'no-store',...options,
-     headers:{'accept':'application/json',...(options.headers||{})}
-   });
+   if(sessionEnded)throw Error('انتهت الجلسة — يلزم تسجيل الدخول من جديد');
+   let response;
+   try{
+     response=await fetch('/admin/api'+path,{
+       credentials:'same-origin',cache:'no-store',...options,
+       headers:{'accept':'application/json',...(options.headers||{})}
+     });
+   }catch(error){
+     expireSession();
+     throw Error('فُقد الاتصال الآمن بالخادم، وأُخفيت بيانات العملاء. أعد تسجيل الدخول.');
+   }
+   if(response.status===401 ||
+      !(response.headers?.get('content-type')||'').toLowerCase().includes('application/json')){
+     expireSession();
+     throw Error('انتهت الجلسة أو يلزم تسجيل الدخول عبر Cloudflare Access');
+   }
    let result;
-   try{result=await response.json()}catch{throw Error('استجابة غير صالحة من الخادم')}
+   try{result=await response.json()}catch{
+     expireSession();
+     throw Error('تعذّر التحقق من استجابة الخادم، وأُخفيت بيانات العملاء.');
+   }
    if(!response.ok){
-     if(response.status===401)throw Error('انتهت الجلسة أو يلزم تسجيل الدخول عبر Cloudflare Access');
      if(response.status===403)throw Error('ليس لديك صلاحية لتنفيذ هذا الإجراء');
      if(response.status===409)throw Error('تغيّرت حالة الطلب بواسطة موظف آخر. أعد فتح التفاصيل');
      throw Error('تعذّر الطلب ('+response.status+'): '+(result.error||''));
@@ -48,6 +84,7 @@
  }
  async function loadSummary(){
    const result=await api('/summary');
+   if(sessionEnded)return;
    const wrap=$('statistics');wrap.replaceChildren();
    for(const [value,label,queryKey,filter] of [
      [result.overdue??0,'متابعات متأخرة','due','overdue'],
@@ -80,6 +117,7 @@
  async function loadSystemStatus(){
    if(role!=='admin')return;
    const result=await api('/system');
+   if(sessionEnded)return;
    const wrap=$('readiness-checks');wrap.replaceChildren();
    const labels={
      accessAuthenticated:'Cloudflare Access (الجلسة الحالية)',
@@ -99,6 +137,7 @@
  async function loadExportHistory(){
    if(role!=='admin')return;
    const result=await api('/exports');
+   if(sessionEnded)return;
    const wrap=$('export-audit-body');wrap.replaceChildren();
    for(const event of result.events||[]){
      const filters=event.filters||{};
@@ -133,7 +172,7 @@
    if(q)params.set('q',q);
    try{
      const result=await api('/leads?'+params.toString());
-     if(ticket!==sequence)return;
+     if(sessionEnded||ticket!==sequence)return;
      total=Number(result.total)||0;
      const rows=$('leads-body');rows.replaceChildren();
      for(const lead of result.items||[]){
@@ -233,7 +272,7 @@
        api('/leads/'+encodeURIComponent(id)+'/followup-completions'),
        api('/leads/'+encodeURIComponent(id)+'/timeline')
      ]);
-     if(!$('detail').open)return;
+     if(sessionEnded||!$('detail').open)return;
      current=data.lead;
      renderNotes(notes.notes);
      renderTimeline(timeline.events);
@@ -364,6 +403,8 @@
      const response=await fetch('/admin/api/leads/export.csv?'+params.toString(),{
        credentials:'same-origin',cache:'no-store',headers:{'accept':'text/csv'}
      });
+     if(sessionEnded)return;
+     if(response.status===401){expireSession();throw Error('انتهت الجلسة أثناء التصدير');}
      if(!response.ok){
        if(response.status===413)throw Error('تجاوزت النتائج حد 500 طلب؛ استخدم المرشحات لتقليلها.');
        if(response.status===403)throw Error('لا تملك صلاحية تصدير بيانات العملاء.');
@@ -401,8 +442,10 @@
      $('identity').textContent=me.email+' · '+(role==='admin'?'مدير':'قراءة فقط');
      await Promise.allSettled([loadSummary(),loadLeads(),loadExportHistory(),loadSystemStatus()]);
    }catch(e){
-     $('identity').textContent='غير متصل';
-     message(error(e),true);
+     if(!sessionEnded){
+       $('identity').textContent='غير متصل';
+       message(error(e),true);
+     }
    }
  }
  document.addEventListener('DOMContentLoaded',init);

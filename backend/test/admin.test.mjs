@@ -792,3 +792,54 @@ test("Admin export uses same urgency sorting as visible lead list",async()=>{
  assert.ok(queries[0].includes("ORDER BY follow_up_at ASC,id ASC LIMIT 501"));
  assert.match(queries[1],/INSERT INTO crm_export_audit/);
 });
+
+
+test("CRM clears customer details on expired Access session and rejects late responses",async()=>{
+ const vm=await import("node:vm");
+ const elements=new Map();
+ let init;
+ function el(id){
+   if(!elements.has(id)){
+     const classes=new Set();
+     elements.set(id,{
+       id,open:false,disabled:false,value:"",textContent:"sample customer record",
+       classList:{
+         add(c){classes.add(c)},remove(c){classes.delete(c)},
+         toggle(c,yes){if(yes)classes.add(c);else classes.delete(c)},
+         contains(c){return classes.has(c)}
+       },
+       replaceChildren(){this.children=[];this.textContent=""},
+       addEventListener(){},close(){this.open=false;},
+       append(){},setAttribute(){},scrollIntoView(){}
+     });
+   }
+   return elements.get(id);
+ }
+ const doc={
+   getElementById:id=>el(id),
+   addEventListener(type,callback){if(type==="DOMContentLoaded")init=callback},
+   createElement(tag){return el("generated-"+tag)}
+ };
+ const context={
+   document:doc,window:{},
+   fetch:async()=>({
+     status:401,ok:false,
+     headers:{get(){return "application/json"}},
+     async json(){return {error:"authentication_required"}}
+   }),
+   URLSearchParams,Intl,Date,console,setTimeout,clearTimeout
+ };
+ vm.runInNewContext(adminApp,context,{filename:"admin-app.js"});
+ assert.equal(typeof init,"function");
+ const tbody=el("leads-body");tbody.textContent="Synthetic customer record";
+ el("detail").open=true;
+ await init();
+ assert.equal(tbody.textContent,"","Stored customer names must be cleared");
+ assert.equal(el("detail").open,false,"Customer detail modal must close");
+ assert.equal(el("refresh").disabled,true,"Expired session must disable refresh");
+ assert.equal(el("export-csv").disabled,true,"Expired session must disable download");
+ assert.equal(el("readiness-panel").classList.contains("hidden"),true);
+ assert.equal(el("export-audit-panel").classList.contains("hidden"),true);
+ assert.match(el("identity").textContent,/انتهت الجلسة/);
+ assert.match(el("message").textContent,/أُخفيت بيانات العملاء/);
+});
