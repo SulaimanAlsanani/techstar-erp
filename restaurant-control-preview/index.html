@@ -38,6 +38,17 @@ footer{margin-top:36px;color:#81929d;font-size:11px}
 @media(max-width:1050px){.cards{grid-template-columns:repeat(2,minmax(0,1fr))}} 
 @media(max-width:780px){.layout{display:block}aside{padding:15px}aside .brand{margin-bottom:12px}nav{grid-template-columns:repeat(2,1fr)}aside small{margin:12px 0 0}.two{grid-template-columns:1fr}main{padding:20px}.cards{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:440px){.cards{grid-template-columns:1fr}h1{font-size:22px}}
+
+.demo-form{margin-top:18px;border:1px solid var(--line);border-radius:12px;background:#fff;padding:20px}
+.demo-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+.demo-row:last-of-type{border:0}
+.demo-choice{display:flex;gap:7px;flex-wrap:wrap}
+.demo-choice label{display:flex;align-items:center;gap:5px;border:1px solid #d6e4eb;border-radius:8px;padding:6px 10px;cursor:pointer}
+.demo-choice label:has(input:checked){border-color:#159d92;background:#e9f8f4}
+.demo-result{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:17px;padding:15px;border-radius:10px;background:#edf7fa}
+.demo-result strong{font-size:25px;color:var(--navy)}
+.demo-small{font-size:12px;color:var(--muted)}
+@media(max-width:650px){.demo-row{grid-template-columns:1fr}.demo-choice{justify-content:flex-start}}
 </style>
 </head>
 <body>
@@ -66,7 +77,16 @@ footer{margin-top:36px;color:#81929d;font-size:11px}
 </section>
 <section id="inspections" role="tabpanel" hidden>
 <div class="hero"><h2>فحوص الجودة وقوائم التدقيق</h2><p>قوائم موزونة، بنود حرجة، نتائج موثقة وصور أدلة حسب الصلاحية.</p></div>
-<div class="panel"><div class="pills"><span class="pill">قوائم تدقيق معتمدة</span><span class="pill">إصدارات مرقمة</span><span class="pill">ملاحظات تفتيش</span><span class="pill">توثيق الأدلة</span></div><table><thead><tr><th>البند</th><th>طريقة التقييم</th><th>الحالة</th></tr></thead><tbody><tr><td>درجات حرارة الحفظ</td><td>مطابق / غير مطابق / غير منطبق</td><td>يتطلب فحصًا فعليًا</td></tr><tr><td>سلامة تخزين المواد</td><td>نتيجة وأدلة مراجعة</td><td>يتطلب فحصًا فعليًا</td></tr><tr><td>نظافة أسطح العمل</td><td>نتيجة وأدلة مراجعة</td><td>يتطلب فحصًا فعليًا</td></tr></tbody></table></div>
+<div class="panel"><div class="pills"><span class="pill">قوائم تدقيق معتمدة</span><span class="pill">إصدارات مرقمة</span><span class="pill">ملاحظات تفتيش</span><span class="pill">توثيق الأدلة</span></div><table><thead><tr><th>البند</th><th>طريقة التقييم</th><th>الحالة</th></tr></thead><tbody><tr><td>درجات حرارة الحفظ</td><td>مطابق / غير مطابق / غير منطبق</td><td>يتطلب فحصًا فعليًا</td></tr><tr><td>سلامة تخزين المواد</td><td>نتيجة وأدلة مراجعة</td><td>يتطلب فحصًا فعليًا</td></tr><tr><td>نظافة أسطح العمل</td><td>نتيجة وأدلة مراجعة</td><td>يتطلب فحصًا فعليًا</td></tr></tbody></table>
+<div class="demo-form" aria-label="تجربة نموذج فحص تجريبي">
+<h3>جرّب نموذج فحص الجودة</h3>
+<p class="demo-small">محاكاة محلية فقط: اختر نتيجة كل بند، وستظهر الدرجة فورًا. لا يتم إرسال أو حفظ أي إجابات.</p>
+<div class="demo-row"><div><strong>درجة حرارة حفظ الأغذية</strong><div class="demo-small">بند حرج · الوزن 40 نقطة</div></div><div class="demo-choice"><label><input type="radio" name="demo-temp" value="pass"> مطابق</label><label><input type="radio" name="demo-temp" value="fail"> غير مطابق</label><label><input type="radio" name="demo-temp" value="na"> لا ينطبق</label></div></div>
+<div class="demo-row"><div><strong>نظافة المعدات والأسطح</strong><div class="demo-small">الوزن 35 نقطة</div></div><div class="demo-choice"><label><input type="radio" name="demo-clean" value="pass"> مطابق</label><label><input type="radio" name="demo-clean" value="fail"> غير مطابق</label><label><input type="radio" name="demo-clean" value="na"> لا ينطبق</label></div></div>
+<div class="demo-row"><div><strong>تواريخ الصلاحية والتخزين</strong><div class="demo-small">الوزن 25 نقطة</div></div><div class="demo-choice"><label><input type="radio" name="demo-expiry" value="pass"> مطابق</label><label><input type="radio" name="demo-expiry" value="fail"> غير مطابق</label><label><input type="radio" name="demo-expiry" value="na"> لا ينطبق</label></div></div>
+<div class="demo-result"><div><div class="demo-small">نتيجة المحاكاة</div><strong id="demo-score" aria-live="polite">—</strong><div id="demo-status" class="demo-small">اختر حالة البنود الثلاثة لعرض النتيجة</div></div><button type="button" class="action" id="demo-reset">إعادة تعيين</button></div>
+</div>
+</div>
 </section>
 <section id="findings" role="tabpanel" hidden>
 <div class="hero"><h2>المخالفات والإجراءات التصحيحية</h2><p>إسناد المسؤوليات، تقديم أدلة جديدة، ثم تحقق مستقل قبل إغلاق المخالفة.</p></div>
@@ -77,10 +97,29 @@ footer{margin-top:36px;color:#81929d;font-size:11px}
 <div class="hero"><h2>الاتجاهات ومراقبة التحسن</h2><p>تحليل النتائج عبر الأيام والفروع ورصد البنود المتكررة دون تغيير النظام التشغيلي.</p></div>
 <div class="two"><div class="panel"><h3>درجات الجودة خلال الفترة</h3><div class="mock">لا يُرسم اتجاه دون نتائج فحوص فعلية</div></div><div class="panel"><h3>المخالفات المتكررة</h3><div class="mock">يُحدد التكرار من سجل الفحوصات والأحداث</div></div></div>
 </section>
-<div class="notice"><strong>تنبيه — هذه ليست بيئة إنتاج</strong>معاينة مستقلة لتوزيع الواجهات فقط. لا تعرض بيانات حقيقية، ولا تدعم تسجيل الدخول أو حفظ الفحوصات أو إرسال التنبيهات. النظام التشغيلي يحتاج Laravel وPostgreSQL واختبارات قبول.</div>
+<div class="notice"><strong>تنبيه — هذه ليست بيئة إنتاج</strong>معاينة مستقلة لتوزيع الواجهات وتجربة تقييم توضيحية داخل المتصفح فقط. لا تعرض بيانات حقيقية، ولا تدعم تسجيل الدخول أو حفظ الفحوصات أو إرسال التنبيهات. النظام التشغيلي يحتاج Laravel وPostgreSQL واختبارات قبول.</div>
 <footer>Restaurant ERP · Control &amp; Quality · Static preview</footer>
 </main></div>
 <script>
 (function(){const tabs=[...document.querySelectorAll('[role="tab"][data-show]')];const panels=[...document.querySelectorAll('[role="tabpanel"]')];tabs.forEach(tab=>tab.addEventListener('click',()=>{const id=tab.dataset.show;tabs.forEach(t=>t.setAttribute('aria-selected',String(t===tab)));panels.forEach(p=>{p.hidden=p.id!==id})}));})();
+
+(function(){
+ const fields=[['demo-temp',40],['demo-clean',35],['demo-expiry',25]];
+ const score=document.getElementById('demo-score'),status=document.getElementById('demo-status');
+ function recalc(){
+  const selections=fields.map(([name,weight])=>({weight,value:document.querySelector('input[name="'+name+'"]:checked')?.value}));
+  if(selections.some(x=>!x.value)){score.textContent='—';status.textContent='لم تكتمل المحاكاة؛ جميع البنود تتطلب اختيارًا';return}
+  const applicable=selections.filter(x=>x.value!=='na');
+  if(!applicable.length){score.textContent='غير متاح';status.textContent='كل البنود غير منطبقة؛ لا تحتسب درجة امتثال';return}
+  const denominator=applicable.reduce((a,x)=>a+x.weight,0);
+  const numerator=applicable.filter(x=>x.value==='pass').reduce((a,x)=>a+x.weight,0);
+  const critical=selections[0].value==='fail';
+  score.textContent=Math.round(numerator/denominator*100)+'%';
+  status.textContent=critical?'تنبيه: فشل بند حرج؛ لا يُعد الفحص ناجحًا حتى إن ارتفعت الدرجة.':'درجة توضيحية فقط؛ لا تمثل فحص مطعم فعلي.';
+ }
+ document.querySelectorAll('.demo-form input[type=radio]').forEach(input=>input.addEventListener('change',recalc));
+ document.getElementById('demo-reset').addEventListener('click',()=>{document.querySelectorAll('.demo-form input[type=radio]').forEach(i=>i.checked=false);recalc()});
+ recalc();
+})();
 </script>
 </body></html>
